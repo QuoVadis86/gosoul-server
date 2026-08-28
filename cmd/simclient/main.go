@@ -127,6 +127,9 @@ func main() {
 		{".lq.Lobby.fetchCommentSetting", "lq.ResCommentSetting"},
 		{".lq.Lobby.fetchRollingNotice", "lq.ResFetchRollingNotice"},
 		{".lq.Lobby.fetchAchievement", "lq.ResAchievement"},
+		{".lq.Lobby.fetchMailInfo", "lq.ResMailInfo"},
+		{".lq.Lobby.fetchMaintainNotice", "lq.ResFetchMaintainNotice"},
+		{".lq.Lobby.fetchIDCardInfo", "lq.ResIDCardInfo"},
 	}
 
 	// Character lottery: paid draw, expect a char id back.

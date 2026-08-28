@@ -75,6 +75,9 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyBuyFromShop, h.buyFromShop)
 	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
 	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
+	r.Handle(protocol.MethodLobbyFetchMailInfo, h.fetchMailInfo)
+	r.Handle(protocol.MethodLobbyFetchMaintainNotice, h.fetchMaintainNotice)
+	r.Handle(protocol.MethodLobbyFetchIDCardInfo, h.fetchIDCardInfo)
 
 	r.Handle(protocol.MethodLobbyCreateRoom, h.createRoom)
 	r.Handle(protocol.MethodLobbyJoinRoom, h.joinRoom)
@@ -467,11 +470,46 @@ func (h *handler) buyFromShop(ctx *router.Context) error {
 }
 
 func (h *handler) fetchRollingNotice(ctx *router.Context) error {
-	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchRollingNotice, &resFetchRollingNotice{Error: &errBody{}})
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchRollingNotice, &resFetchRollingNotice{
+		Error: &errBody{},
+		Notice: &rollingNotice{
+			Content: "欢迎来到 gosoul 私服！日麻环境已就绪。",
+		},
+	})
 }
 
 func (h *handler) fetchActivity(ctx *router.Context) error {
-	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResActivityList, &resActivityList{Error: &errBody{}})
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResActivityList, &resActivityList{
+		Error: &errBody{},
+		ActivityList: []activity{
+			{ActivityID: 1, Type: "新手"},
+		},
+	})
+}
+
+// fetchMailInfo returns a static welcome mail.
+func (h *handler) fetchMailInfo(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResMailInfo, &resMailInfo{
+		Error: &errBody{},
+		Mails: []mail{{
+			MailID:     1,
+			State:      0,
+			Title:      "欢迎",
+			Content:    "感谢使用 gosoul 私服。祝你麻将愉快。",
+			CreateTime: uint32(now()),
+			ExpireTime: uint32(now() + 86400*30),
+		}},
+	})
+}
+
+// fetchMaintainNotice reports no active maintenance.
+func (h *handler) fetchMaintainNotice(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchMaintainNotice, &resFetchMaintainNotice{Error: &errBody{}})
+}
+
+// fetchIDCardInfo reports the account's real-name state (unverified per default).
+func (h *handler) fetchIDCardInfo(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResIDCardInfo, &resIDCardInfo{Error: &errBody{}, IsAuthed: false, Country: "chs"})
 }
 
 type notifyMatchGameStart struct {

@@ -49,6 +49,9 @@ const (
 	MethodLobbyFetchAchievement     = ".lq.Lobby.fetchAchievement"
 	MethodLobbyOpenGacha            = ".lq.Lobby.openGacha"
 	MethodLobbyBuyFromShop          = ".lq.Lobby.buyFromShop"
+	MethodLobbyFetchMailInfo        = ".lq.Lobby.fetchMailInfo"
+	MethodLobbyFetchMaintainNotice  = ".lq.Lobby.fetchMaintainNotice"
+	MethodLobbyFetchIDCardInfo      = ".lq.Lobby.fetchIDCardInfo"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 
@@ -123,6 +126,9 @@ const (
 	TypeResOpenGacha            = "lq.ResOpenGacha"
 	TypeResBuyFromShop          = "lq.ResBuyFromShop"
 	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
+	TypeResMailInfo             = "lq.ResMailInfo"
+	TypeResFetchMaintainNotice  = "lq.ResFetchMaintainNotice"
+	TypeResIDCardInfo           = "lq.ResIDCardInfo"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"
 

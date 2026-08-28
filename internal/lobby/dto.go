@@ -113,15 +113,59 @@ type resBuyFromShop struct {
 	Rewards []rewardSlot `json:"rewards"`
 }
 
+// mail mirrors the minimal lq.Mail the client renders in the mailbox.
+type mail struct {
+	MailID      uint32       `json:"mailId"`
+	State       uint32       `json:"state"`
+	Title       string       `json:"title"`
+	Content     string       `json:"content"`
+	Attachments []rewardSlot `json:"attachments"`
+	CreateTime  uint32       `json:"createTime"`
+	ExpireTime  uint32       `json:"expireTime"`
+}
+
+// resMailInfo answers .lq.Lobby.fetchMailInfo.
+type resMailInfo struct {
+	Error *errBody `json:"error"`
+	Mails []mail   `json:"mails"`
+}
+
+// resFetchMaintainNotice answers .lq.Lobby.fetchMaintainNotice.
+type resFetchMaintainNotice struct {
+	Error  *errBody `json:"error"`
+	Notice struct {
+		MaintainTime uint32 `json:"maintainTime"`
+	} `json:"notice"`
+}
+
+// resIDCardInfo answers .lq.Lobby.fetchIDCardInfo.
+type resIDCardInfo struct {
+	Error    *errBody `json:"error"`
+	IsAuthed bool     `json:"isAuthed"`
+	Country  string   `json:"country"`
+}
+
 // resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
 type resFetchRollingNotice struct {
-	Error *errBody `json:"error"`
+	Error  *errBody       `json:"error"`
+	Notice *rollingNotice `json:"notice"`
+}
+
+// rollingNotice mirrors lq.RollingNotice.
+type rollingNotice struct {
+	Content string `json:"content"`
 }
 
 // resActivityList answers .lq.Lobby.fetchActivity.
 type resActivityList struct {
-	Error        *errBody `json:"error"`
-	ActivityList []any    `json:"activityList"`
+	Error        *errBody   `json:"error"`
+	ActivityList []activity `json:"activityList"`
+}
+
+// activity mirrors the minimal lq.Activity entry.
+type activity struct {
+	ActivityID uint32 `json:"activityId"`
+	Type       string `json:"type"`
 }
 
 // playerGameView is a room seat's view.
