@@ -48,6 +48,16 @@ const (
 	MethodLobbyFetchAchievementRate = ".lq.Lobby.fetchAchievementRate"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
+
+	MethodLobbyCreateRoom    = ".lq.Lobby.createRoom"
+	MethodLobbyJoinRoom      = ".lq.Lobby.joinRoom"
+	MethodLobbyLeaveRoom     = ".lq.Lobby.leaveRoom"
+	MethodLobbyReadyPlay     = ".lq.Lobby.readyPlay"
+	MethodLobbyStartRoom     = ".lq.Lobby.startRoom"
+	MethodLobbyAddRoomRobot  = ".lq.Lobby.addRoomRobot"
+	MethodLobbyKickPlayer    = ".lq.Lobby.roomKickPlayer"
+	MethodLobbyFetchRoom     = ".lq.Lobby.fetchRoom"
+	MethodLobbyFetchRoomList = ".lq.Lobby.fetchRoomList"
 )
 
 // FastTest 对局方法（对局会话层落地前由 surface 空响应兜底）。
@@ -100,6 +110,16 @@ const (
 	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"
+
+	TypeReqCreateRoom     = "lq.ReqCreateRoom"
+	TypeResCreateRoom     = "lq.ResCreateRoom"
+	TypeReqJoinRoom       = "lq.ReqJoinRoom"
+	TypeResJoinRoom       = "lq.ResJoinRoom"
+	TypeResSelfRoom       = "lq.ResSelfRoom"
+	TypeReqRoomReady      = "lq.ReqRoomReady"
+	TypeReqRoomStart      = "lq.ReqRoomStart"
+	TypeReqAddRoomRobot   = "lq.ReqAddRoomRobot"
+	TypeReqRoomKickPlayer = "lq.ReqRoomKickPlayer"
 )
 
 // ── Notify 名 ─────────────────────────────────────────────────────────

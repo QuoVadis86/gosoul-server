@@ -14,11 +14,23 @@ import (
 	"github.com/qy-info/gosoul/internal/gateway"
 	"github.com/qy-info/gosoul/internal/lobby"
 	"github.com/qy-info/gosoul/internal/protocol"
+	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/storage"
 	"github.com/qy-info/gosoul/internal/transport"
 	"github.com/qy-info/gosoul/internal/user"
 )
+
+// roomAccounts adapts the user service to the room domain's account lookup.
+type roomAccounts struct{ svc *user.Service }
+
+func (a roomAccounts) Account(accountID uint32) (string, uint32) {
+	acc, err := a.svc.Get(context.Background(), int64(accountID))
+	if err != nil {
+		return "Player", 400101
+	}
+	return acc.Nickname, uint32(acc.AvatarID)
+}
 
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
@@ -45,7 +57,8 @@ func main() {
 		os.Exit(1)
 	}
 	r := router.New(reg)
-	lobby.Handlers(svc, log, r, reg)
+	roomSvc := room.New(roomAccounts{svc})
+	lobby.Handlers(svc, log, r, reg, roomSvc)
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 

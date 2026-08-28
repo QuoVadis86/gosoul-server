@@ -58,22 +58,26 @@ func main() {
 	}
 
 	recv := func(respType string) []byte {
-		_, data, err := c.ReadMessage()
-		if err != nil {
-			log.Fatal("read: ", err)
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				log.Fatal("read: ", err)
+			}
+			f, err := protocol.DecodeFrame(data)
+			if err != nil {
+				log.Fatalf("decode: %v hex=%x", err, data)
+			}
+			got := ""
+			if respType != "" && len(f.Data) > 0 {
+				got = decodeJSON(reg, respType, f.Data)
+			} else if f.Type == protocol.MsgNotify && f.Name != "" {
+				got = decodeJSON(reg, f.Name, f.Data)
+			}
+			fmt.Printf(">>> frame type=%d name=%q dataLen=%d json=%s\nhex=%s\n", f.Type, f.Name, len(f.Data), got, hex.EncodeToString(data))
+			if respType == "" || f.Type != protocol.MsgNotify {
+				return data
+			}
 		}
-		f, err := protocol.DecodeFrame(data)
-		if err != nil {
-			log.Fatalf("decode: %v hex=%x", err, data)
-		}
-		got := ""
-		if respType != "" && len(f.Data) > 0 {
-			got = decodeJSON(reg, respType, f.Data)
-		} else if f.Type == protocol.MsgNotify && f.Name != "" {
-			got = decodeJSON(reg, f.Name, f.Data)
-		}
-		fmt.Printf(">>> frame type=%d name=%q dataLen=%d json=%s\nhex=%s\n", f.Type, f.Name, len(f.Data), got, hex.EncodeToString(data))
-		return data
 	}
 
 	send(protocol.MethodRouteRequestConnection, "lq.ReqRequestConnection", map[string]any{
@@ -118,6 +122,19 @@ func main() {
 		send(step[0], "", nil)
 		recv(step[1])
 	}
+
+	send(".lq.Lobby.createRoom", "lq.ReqCreateRoom", map[string]any{
+		"playerCount": 4,
+		"mode": map[string]any{
+			"mode":       1,
+			"detailRule": map[string]any{},
+		},
+		"clientVersionString": "WebGL_2022-0.16.272",
+	})
+	recv("lq.ResCreateRoom")
+
+	send(".lq.Lobby.fetchRoom", "", nil)
+	recv("lq.ResSelfRoom")
 
 	if *method != "" {
 		send(*method, "", nil)

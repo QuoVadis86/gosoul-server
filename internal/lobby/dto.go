@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
@@ -86,6 +87,54 @@ type resFetchRollingNotice struct {
 type resActivityList struct {
 	Error        *errBody `json:"error"`
 	ActivityList []any    `json:"activityList"`
+}
+
+// playerGameView is a room seat's view.
+type playerGameView struct {
+	AccountID uint32 `json:"accountId"`
+	AvatarID  uint32 `json:"avatarId"`
+	Nickname  string `json:"nickname"`
+	Level     struct {
+		ID uint32 `json:"id"`
+	} `json:"level"`
+	Level3 struct {
+		ID uint32 `json:"id"`
+	} `json:"level3"`
+	Views    []any  `json:"views"`
+	TeamName string `json:"teamName"`
+}
+
+// roomView is the Room projection the client renders for a friend room.
+type roomView struct {
+	RoomID         uint32           `json:"roomId"`
+	OwnerID        uint32           `json:"ownerId"`
+	Mode           map[string]any   `json:"mode"`
+	MaxPlayerCount uint32           `json:"maxPlayerCount"`
+	Persons        []playerGameView `json:"persons"`
+	ReadyList      []uint32         `json:"readyList"`
+	IsPlaying      bool             `json:"isPlaying"`
+	PublicLive     bool             `json:"publicLive"`
+	RobotCount     uint32           `json:"robotCount"`
+	Robots         []playerGameView `json:"robots"`
+	Positions      []uint32         `json:"positions"`
+}
+
+// resCreateRoom answers .lq.Lobby.createRoom.
+type resCreateRoom struct {
+	Error *errBody  `json:"error"`
+	Room  *roomView `json:"room"`
+}
+
+// resJoinRoom answers .lq.Lobby.joinRoom.
+type resJoinRoom struct {
+	Error *errBody  `json:"error"`
+	Room  *roomView `json:"room"`
+}
+
+// resSelfRoom answers .lq.Lobby.fetchRoom.
+type resSelfRoom struct {
+	Error *errBody  `json:"error"`
+	Room  *roomView `json:"room"`
 }
 
 // errorCode is the shared way to answer with a non-zero error code.
@@ -340,6 +389,44 @@ func (h *handler) charIDs(home *user.Home) []uint32 {
 		out = append(out, uint32(c.CharID))
 	}
 	return out
+}
+
+// roomView projects a room aggregate for client rendering.
+func (h *handler) roomView(r *room.Room) *roomView {
+	v := &roomView{
+		RoomID:         r.ID,
+		OwnerID:        r.OwnerID,
+		Mode:           map[string]any{"mode": r.Mode.Mode, "detailRule": r.Mode.DetailRule},
+		MaxPlayerCount: r.MaxPlayerCount,
+		IsPlaying:      r.GameStarted,
+		PublicLive:     r.PublicLive,
+		Positions:      []uint32{},
+	}
+	for i, p := range r.Players {
+		v.Positions = append(v.Positions, r.ID*10+uint32(i))
+		if p.Robot {
+			v.Robots = append(v.Robots, h.playerView(&p))
+			v.RobotCount++
+			continue
+		}
+		v.Persons = append(v.Persons, h.playerView(&p))
+		if p.Ready {
+			v.ReadyList = append(v.ReadyList, p.AccountID)
+		}
+	}
+	return v
+}
+
+func (h *handler) playerView(p *room.Player) playerGameView {
+	v := playerGameView{
+		AccountID: p.AccountID,
+		AvatarID:  p.AvatarID,
+		Nickname:  p.Nickname,
+	}
+	v.Level.ID = 1001
+	v.Level3.ID = 1001
+	v.Views = []any{}
+	return v
 }
 
 func (h *handler) updatePayload(accountID int64) *updatePayload {

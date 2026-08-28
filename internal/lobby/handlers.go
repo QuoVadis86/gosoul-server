@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/qy-info/gosoul/internal/protocol"
+	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/user"
 )
@@ -33,8 +34,8 @@ func usernameFromToken(token string) int64 {
 }
 
 // Handlers registers every lobby RPC the client uses at login.
-func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry) {
-	h := &handler{user: svc, log: log}
+func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry, rooms *room.Service) {
+	h := &handler{user: svc, log: log, rooms: rooms}
 
 	r.Handle(protocol.MethodRouteRequestConnection, h.requestConnection)
 	r.Handle(protocol.MethodRouteHeartbeat, h.heartbeat)
@@ -69,12 +70,22 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
 	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
 
+	r.Handle(protocol.MethodLobbyCreateRoom, h.createRoom)
+	r.Handle(protocol.MethodLobbyJoinRoom, h.joinRoom)
+	r.Handle(protocol.MethodLobbyLeaveRoom, h.leaveRoom)
+	r.Handle(protocol.MethodLobbyReadyPlay, h.readyPlay)
+	r.Handle(protocol.MethodLobbyStartRoom, h.startRoom)
+	r.Handle(protocol.MethodLobbyAddRoomRobot, h.addRoomRobot)
+	r.Handle(protocol.MethodLobbyKickPlayer, h.kickPlayer)
+	r.Handle(protocol.MethodLobbyFetchRoom, h.fetchRoom)
+
 	registerEmptySurface(r, reg, log)
 }
 
 type handler struct {
-	user *user.Service
-	log  *slog.Logger
+	user  *user.Service
+	log   *slog.Logger
+	rooms *room.Service
 }
 
 func (h *handler) requestConnection(ctx *router.Context) error {
@@ -184,10 +195,7 @@ func (h *handler) respondLogin(ctx *router.Context, acc *user.Account, home *use
 	if err := ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, res); err != nil {
 		return err
 	}
-	// 登录成功后推送账号数值，客户端依赖此刷新大厅钱包/资源。
-	return ctx.Session.Notify(protocol.NotifyAccountUpdate, &notifyAccountUpdate{
-		Update: h.updatePayload(acc.ID),
-	})
+	return nil
 }
 
 func (h *handler) oauth2Auth(ctx *router.Context) error {
@@ -330,6 +338,126 @@ func (h *handler) fetchRollingNotice(ctx *router.Context) error {
 
 func (h *handler) fetchActivity(ctx *router.Context) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResActivityList, &resActivityList{Error: &errBody{}})
+}
+
+func (h *handler) createRoom(ctx *router.Context) error {
+	var req struct {
+		PlayerCount uint32         `json:"playerCount"`
+		Mode        map[string]any `json:"mode"`
+		PublicLive  bool           `json:"publicLive"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqCreateRoom, ctx.Payload, &req); err != nil {
+		return err
+	}
+	if req.PlayerCount == 0 {
+		req.PlayerCount = 4
+	}
+	accountID := uint32(ctx.Session.AccountID())
+	r := h.rooms.Create(accountID, req.PlayerCount, room.Mode{Mode: modeInt(req.Mode), DetailRule: detailRules(req.Mode)}, req.PublicLive)
+	res := &resCreateRoom{Error: &errBody{}, Room: h.roomView(r)}
+	if b, err := json.Marshal(res); err == nil {
+		h.log.Info("createRoom payload", "json", string(b))
+	}
+	h.log.Info("createRoom decision", "account", accountID, "room", r.ID, "players", len(r.Players))
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCreateRoom, res)
+}
+
+func detailRules(m map[string]any) map[string]any {
+	if v, ok := m["detailRule"].(map[string]any); ok {
+		return v
+	}
+	if v, ok := m["detail_rule"].(map[string]any); ok {
+		return v
+	}
+	return nil
+}
+
+func (h *handler) joinRoom(ctx *router.Context) error {
+	var req struct {
+		RoomID uint32 `json:"roomId"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqJoinRoom, ctx.Payload, &req); err != nil {
+		return err
+	}
+	r, err := h.rooms.Join(req.RoomID, uint32(ctx.Session.AccountID()))
+	if err != nil {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResJoinRoom, &resJoinRoom{Error: errorCode(1001)})
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResJoinRoom, &resJoinRoom{Error: &errBody{}, Room: h.roomView(r)})
+}
+
+func (h *handler) leaveRoom(ctx *router.Context) error {
+	var req struct {
+		RoomID uint32 `json:"roomId"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqLeaveRoom", ctx.Payload, &req); err != nil {
+		return h.ok(ctx)
+	}
+	_ = h.rooms.Leave(req.RoomID, uint32(ctx.Session.AccountID()))
+	return h.ok(ctx)
+}
+
+func (h *handler) readyPlay(ctx *router.Context) error {
+	var req struct {
+		Ready bool `json:"ready"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqRoomReady, ctx.Payload, &req); err != nil {
+		return err
+	}
+	if _, err := h.rooms.SetReady(h.rooms.RoomOf(uint32(ctx.Session.AccountID())), uint32(ctx.Session.AccountID()), req.Ready); err != nil {
+		return h.ok(ctx)
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommon, empty{})
+}
+
+func (h *handler) startRoom(ctx *router.Context) error {
+	var req struct {
+		RoomID uint32 `json:"roomId"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqRoomStart, ctx.Payload, &req); err != nil {
+		return h.ok(ctx)
+	}
+	if _, err := h.rooms.Start(req.RoomID); err != nil {
+		return h.ok(ctx)
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommon, empty{})
+}
+
+func (h *handler) addRoomRobot(ctx *router.Context) error {
+	var req struct {
+		RoomID uint32 `json:"roomId"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqAddRoomRobot, ctx.Payload, &req); err != nil {
+		return h.ok(ctx)
+	}
+	roomID := req.RoomID
+	if roomID == 0 {
+		roomID = h.rooms.RoomOf(uint32(ctx.Session.AccountID()))
+	}
+	if _, err := h.rooms.AddRobot(roomID); err != nil {
+		return h.ok(ctx)
+	}
+	return h.ok(ctx)
+}
+
+func (h *handler) kickPlayer(ctx *router.Context) error {
+	return h.ok(ctx)
+}
+
+func (h *handler) fetchRoom(ctx *router.Context) error {
+	roomID := h.rooms.RoomOf(uint32(ctx.Session.AccountID()))
+	r, err := h.rooms.Get(roomID)
+	if err != nil {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResSelfRoom, &resSelfRoom{Error: errorCode(1001)})
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResSelfRoom, &resSelfRoom{Error: &errBody{}, Room: h.roomView(r)})
+}
+
+func modeInt(m map[string]any) uint32 {
+	if v, ok := m["mode"].(float64); ok {
+		return uint32(v)
+	}
+	return 1
 }
 
 func (h *handler) ok(ctx *router.Context) error {

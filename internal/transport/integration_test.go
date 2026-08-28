@@ -14,6 +14,7 @@ import (
 
 	"github.com/qy-info/gosoul/internal/lobby"
 	"github.com/qy-info/gosoul/internal/protocol"
+	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/storage"
 	"github.com/qy-info/gosoul/internal/user"
@@ -35,7 +36,7 @@ func startLobbyServer(t *testing.T) (*protocol.Registry, *httptest.Server) {
 	}
 	rtr := router.New(reg)
 	svc := user.NewService(store.Account, store.Character, store.Wallet)
-	lobby.Handlers(svc, log, rtr, reg)
+	lobby.Handlers(svc, log, rtr, reg, room.New(nil))
 
 	server := New(rtr, reg, log)
 	ts := httptest.NewServer(http.HandlerFunc(server.HandleHTTP))
