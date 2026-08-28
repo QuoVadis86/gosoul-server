@@ -52,6 +52,7 @@ const (
 	MethodLobbyFetchMailInfo        = ".lq.Lobby.fetchMailInfo"
 	MethodLobbyFetchMaintainNotice  = ".lq.Lobby.fetchMaintainNotice"
 	MethodLobbyFetchIDCardInfo      = ".lq.Lobby.fetchIDCardInfo"
+	MethodLobbyFetchGameRecord      = ".lq.Lobby.fetchGameRecord"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 
@@ -129,6 +130,7 @@ const (
 	TypeResMailInfo             = "lq.ResMailInfo"
 	TypeResFetchMaintainNotice  = "lq.ResFetchMaintainNotice"
 	TypeResIDCardInfo           = "lq.ResIDCardInfo"
+	TypeResGameRecord           = "lq.ResGameRecord"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"
 

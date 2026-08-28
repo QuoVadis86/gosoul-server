@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/qy-info/gosoul/internal/gacha"
+	"github.com/qy-info/gosoul/internal/paipu"
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
@@ -37,8 +38,8 @@ func usernameFromToken(token string) int64 {
 }
 
 // Handlers registers every lobby RPC the client uses at login.
-func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry, rooms *room.Service, gameAddr string) {
-	h := &handler{user: svc, log: log, rooms: rooms, gameAddr: gameAddr}
+func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry, rooms *room.Service, gameAddr string, pp *paipu.Service) {
+	h := &handler{user: svc, log: log, rooms: rooms, gameAddr: gameAddr, paipu: pp}
 
 	r.Handle(protocol.MethodRouteRequestConnection, h.requestConnection)
 	r.Handle(protocol.MethodRouteHeartbeat, h.heartbeat)
@@ -78,6 +79,7 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchMailInfo, h.fetchMailInfo)
 	r.Handle(protocol.MethodLobbyFetchMaintainNotice, h.fetchMaintainNotice)
 	r.Handle(protocol.MethodLobbyFetchIDCardInfo, h.fetchIDCardInfo)
+	r.Handle(protocol.MethodLobbyFetchGameRecord, h.fetchGameRecord)
 
 	r.Handle(protocol.MethodLobbyCreateRoom, h.createRoom)
 	r.Handle(protocol.MethodLobbyJoinRoom, h.joinRoom)
@@ -100,6 +102,7 @@ type handler struct {
 	gameAddr string
 	gacha    *gacha.Service
 	shop     *shop.Service
+	paipu    *paipu.Service
 }
 
 // ensureShop lazily builds the currency shop over the user service.
@@ -510,6 +513,31 @@ func (h *handler) fetchMaintainNotice(ctx *router.Context) error {
 // fetchIDCardInfo reports the account's real-name state (unverified per default).
 func (h *handler) fetchIDCardInfo(ctx *router.Context) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResIDCardInfo, &resIDCardInfo{Error: &errBody{}, IsAuthed: false, Country: "chs"})
+}
+
+// fetchGameRecord returns a stored paipu replay summary for a game uuid.
+func (h *handler) fetchGameRecord(ctx *router.Context) error {
+	var req struct {
+		GameUUID string `json:"gameUuid"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqGameRecord", ctx.Payload, &req); err != nil {
+		return err
+	}
+	if h.paipu == nil {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResGameRecord, &resGameRecord{Error: errorCode(4001)})
+	}
+	rec, err := h.paipu.Get(context.Background(), req.GameUUID)
+	if err != nil {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResGameRecord, &resGameRecord{Error: errorCode(2003)})
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResGameRecord, &resGameRecord{
+		Error: &errBody{},
+		Head: &recordGame{
+			UUID:      rec.UUID,
+			StartTime: uint32(rec.CreatedAt.Unix()),
+		},
+		DataURL: "local",
+	})
 }
 
 type notifyMatchGameStart struct {

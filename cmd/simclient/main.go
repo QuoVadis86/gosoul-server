@@ -136,6 +136,10 @@ func main() {
 	send(".lq.Lobby.openGacha", "lq.ReqOpenGacha", map[string]any{"activityId": 1, "count": 1})
 	recv("lq.ResOpenGacha")
 
+	// Game record lookup responds even for an unknown uuid (error 2003).
+	send(".lq.Lobby.fetchGameRecord", "lq.ReqGameRecord", map[string]any{"gameUuid": "local-game-uuid-999"})
+	recv("lq.ResGameRecord")
+
 	// Buy 5000 gold for 100 diamonds.
 	send(".lq.Lobby.buyFromShop", "lq.ReqBuyFromShop", map[string]any{"goodsId": 1, "count": 1})
 	recv("lq.ResBuyFromShop")

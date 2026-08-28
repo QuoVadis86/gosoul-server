@@ -145,6 +145,20 @@ type resIDCardInfo struct {
 	Country  string   `json:"country"`
 }
 
+// recordGame mirrors lq.RecordGame's head fields the client displays.
+type recordGame struct {
+	UUID      string `json:"uuid"`
+	StartTime uint32 `json:"startTime"`
+	EndTime   uint32 `json:"endTime"`
+}
+
+// resGameRecord answers .lq.Lobby.fetchGameRecord.
+type resGameRecord struct {
+	Error   *errBody    `json:"error"`
+	Head    *recordGame `json:"head"`
+	DataURL string      `json:"dataUrl"`
+}
+
 // resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
 type resFetchRollingNotice struct {
 	Error  *errBody       `json:"error"`

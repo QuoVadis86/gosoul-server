@@ -78,12 +78,12 @@ func main() {
 	}
 	r := router.New(reg)
 	roomSvc := room.New(roomAccounts{svc})
-	lobby.Handlers(svc, log, r, reg, roomSvc, cfg.Game.Addr())
+	ppSvc := paipu.New(store.Paipu)
+	lobby.Handlers(svc, log, r, reg, roomSvc, cfg.Game.Addr(), ppSvc)
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
 	gameRouter := router.New(reg)
-	ppSvc := paipu.New(store.Paipu)
 	game.Handlers(gameRouter, log, ppSvc, achHook{svc})
 	gameSrv := transport.New(gameRouter, reg, log)
 	gameHTTP := &http.Server{Addr: cfg.Game.Addr(), Handler: http.HandlerFunc(gameSrv.HandleHTTP)}
