@@ -138,3 +138,11 @@ type actionHu struct {
 type actionLiuJu struct {
 	Type uint32 `json:"type"`
 }
+
+// actionCPG mirrors ActionChiPengGang.
+type actionCPG struct {
+	Seat  uint32   `json:"seat"`
+	Type  uint32   `json:"type"`
+	Tiles []string `json:"tiles"`
+	Froms []uint32 `json:"froms"`
+}

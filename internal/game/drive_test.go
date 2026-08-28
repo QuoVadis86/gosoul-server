@@ -342,3 +342,94 @@ func TestHumanRiichiOpApplied(t *testing.T) {
 		t.Fatal("human first-discard riichi should be double")
 	}
 }
+
+// callBot always claims a pon when offered.
+type callBot struct{ fixedBot }
+
+func (c *callBot) ChooseCall(_ context.Context, _ *engine.View, ops []engine.CallOp) *engine.CallOp {
+	for i := range ops {
+		if ops[i].Type == engine.MeldPon {
+			return &ops[i]
+		}
+	}
+	return nil
+}
+
+func TestRoundCallPon(t *testing.T) {
+	r, _ := newTestRoundForCall()
+	// seat 1 holds two 5m, seat 0 discards 5m elsewhere; call must register.
+	cands := r.Candidates(1, "5m")
+	if len(cands) == 0 {
+		t.Fatal("seat 1 should be able to pon 5m")
+	}
+	if err := r.Call(1, cands[0]); err != nil {
+		t.Fatal(err)
+	}
+	if len(r.Players[1].Melds) != 1 {
+		t.Fatalf("melds = %d, want 1", len(r.Players[1].Melds))
+	}
+	if r.Players[1].Melds[0].Type != engine.MeldPon {
+		t.Fatalf("meld type = %v, want pon", r.Players[1].Melds[0].Type)
+	}
+	if got := r.Current(); got != 1 {
+		t.Fatalf("after call turn should be claiming seat, got %d", got)
+	}
+}
+
+func TestDriveClaimsPon(t *testing.T) {
+	fake := &fakeSess{}
+	s := &session{
+		Seat:       0,
+		numPlayers: 4,
+		round:      &roundState{},
+	}
+	r, _ := newTestRoundForCall()
+	s.round.round = r
+	s.round.drv = newDrive(fake, nil, func(seat int) ai.Player {
+		if seat == 0 {
+			return nil // human
+		}
+		return &callBot{fixedBot{tile: ""}}
+	})
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// seat 1 (next) holds two 5m; seat 0 discards 5m so pon is offered.
+	claimed, called, err := s.askCalls(context.Background(), r, "5m", 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("expected pon to be claimed")
+	}
+	if claimed != 1 {
+		t.Fatalf("claimed seat = %d, want 1", claimed)
+	}
+	if len(r.Players[1].Melds) != 1 {
+		t.Fatal("seat 1 should hold the pon meld")
+	}
+	fake.mu.Lock()
+	defer fake.mu.Unlock()
+	for _, a := range fake.actions {
+		if a == "ActionChiPengGang" {
+			return
+		}
+	}
+	t.Fatal("expected ActionChiPengGang broadcast")
+}
+
+func newTestRoundForCall() (*engine.Round, *engine.Wall) {
+	w := &engine.Wall{
+		Hands: [][]engine.Tile{
+			{"1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "1p", "2p", "3p", "4p"},
+			{"5m", "5m", "3s", "4s", "5s", "6s", "7s", "8s", "9s", "5z", "6z", "7z", "1z"},
+			{"1m", "1m", "1m", "1p", "1p", "1p", "1s", "1s", "1s", "1z", "2z", "3z", "4z"},
+			{"9m", "9m", "9m", "9p", "9p", "9p", "9s", "9s", "9s", "5z", "5z", "5z", "6z"},
+		},
+		DealerExtra: "5z",
+		Wall:        []engine.Tile{"1m", "2m", "3p", "4s", "5z", "6z", "7z", "8z", "1z", "2z", "3p", "4s"},
+		DeadWall:    []engine.Tile{"1m", "2m", "5z", "6z", "1z", "1z", "2z", "2z", "3z", "3z", "4z", "4z", "7z", "7z"},
+	}
+	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, w, &fixedBot{})
+	return r, w
+}

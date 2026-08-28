@@ -113,6 +113,20 @@ func (d *drive) LiuJu(ctx context.Context, step uint32) error {
 	return d.push(protocol.ActionLiuJu, &actionLiuJu{Type: 1}, step)
 }
 
+// CPG broadcasts a claimed meld (pon/daiminkan) to the client.
+func (d *drive) CPG(ctx context.Context, r *engine.Round, seat int, meld engine.Meld, step uint32) error {
+	tiles := make([]string, 0, len(meld.Tiles))
+	for _, t := range meld.Tiles {
+		tiles = append(tiles, string(t))
+	}
+	action := &actionCPG{
+		Seat:  uint32(seat),
+		Type:  uint32(meld.Type),
+		Tiles: tiles,
+	}
+	return d.push(protocol.ActionChiPengGang, action, step)
+}
+
 func (d *drive) push(name string, v any, step uint32) error {
 	return d.sess.ActionNotify(name, v, step)
 }

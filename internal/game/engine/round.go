@@ -227,6 +227,57 @@ func (r *Round) IsDoubleRiichi(seat int) bool {
 	return r.doubleRiichi[seat]
 }
 
+// Candidates lists the melds a seat could claim from a freshly discarded tile.
+// It only reports pon (two in hand) and kan (three in hand); chi is omitted
+// here because chi candidates need three consecutive tiles and the loop keeps
+// this helper minimal.
+func (r *Round) Candidates(seat int, claimed Tile) []Meld {
+	p := &r.Players[seat]
+	if p.Riichi {
+		return nil
+	}
+	count := 0
+	for _, t := range p.Hand {
+		if t == claimed {
+			count++
+		}
+	}
+	var out []Meld
+	if count >= 2 {
+		out = append(out, Meld{Type: MeldPon, Tile: claimed, Tiles: []Tile{claimed, claimed, claimed}})
+	}
+	if count >= 3 {
+		out = append(out, Meld{Type: MeldDaiminkan, Tile: claimed, Tiles: []Tile{claimed, claimed, claimed, claimed}})
+	}
+	return out
+}
+
+// Call applies a claimed meld: it removes the tiles from the player's hand,
+// appends the meld, and hands the turn to the claiming seat.
+func (r *Round) Call(seat int, meld Meld) error {
+	p := &r.Players[seat]
+	need := 3
+	if meld.Type == MeldDaiminkan {
+		need = 4
+	}
+	removed := 0
+	var kept []Tile
+	for _, t := range p.Hand {
+		if t == meld.Tile && removed < need-1 {
+			removed++
+			continue
+		}
+		kept = append(kept, t)
+	}
+	if removed < need-1 {
+		return ErrInvalidDiscard
+	}
+	p.Hand = kept
+	p.Melds = append(p.Melds, meld)
+	r.current = seat
+	return nil
+}
+
 func (r *Round) anyMeld() bool {
 	for _, p := range r.Players {
 		if len(p.Melds) > 0 {

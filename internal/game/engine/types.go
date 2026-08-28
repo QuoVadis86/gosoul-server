@@ -14,6 +14,23 @@ const (
 	MeldKakan
 )
 
+func (t MeldType) String() string {
+	switch t {
+	case MeldChi:
+		return "chi"
+	case MeldPon:
+		return "pon"
+	case MeldDaiminkan:
+		return "daiminkan"
+	case MeldAnkan:
+		return "ankan"
+	case MeldKakan:
+		return "kakan"
+	default:
+		return "?"
+	}
+}
+
 // Meld is a claimed group attached to a seat.
 type Meld struct {
 	Type  MeldType

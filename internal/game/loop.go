@@ -79,10 +79,66 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 			return nil
 		}
 		step++
-		seat = nextSeat
+		// After a discard, other seats may claim it as a meld.
+		if calledSeat, called, err := s.askCalls(ctx, r, d.tile, nextSeat, step); err != nil {
+			return err
+		} else if called {
+			seat = calledSeat
+		} else {
+			seat = nextSeat
+		}
 	}
 	r.End(-1)
 	return s.round.drv.LiuJu(ctx, step)
+}
+
+// askCalls polls each other seat for a pon/kan claim on the freshly discarded
+// tile. The first seat that wants it takes the turn; nobody = false.
+func (s *session) askCalls(ctx context.Context, r *engine.Round, claimed engine.Tile, nextSeat int, step uint32) (seat int, called bool, err error) {
+	n := r.Meta.NumPlayers
+	for i := 1; i < n; i++ {
+		seatIdx := (nextSeat + i - 1) % n
+		cands := r.Candidates(seatIdx, claimed)
+		if len(cands) == 0 {
+			continue
+		}
+		robot := s.round.drv.BotFor(seatIdx)
+		if robot != nil {
+			op := robot.ChooseCall(ctx, r.ViewFor(seatIdx), toCallOps(cands))
+			if op == nil {
+				continue
+			}
+			meld := meldOf(*op, claimed)
+			if err := r.Call(seatIdx, meld); err != nil {
+				continue
+			}
+			if err := s.round.drv.CPG(ctx, r, seatIdx, meld, step); err != nil {
+				return 0, false, err
+			}
+			return seatIdx, true, nil
+		}
+	}
+	return 0, false, nil
+}
+
+func toCallOps(cands []engine.Meld) []engine.CallOp {
+	out := make([]engine.CallOp, 0, len(cands))
+	for _, m := range cands {
+		out = append(out, engine.CallOp{Type: m.Type, Tile: m.Tile, Combo: m.Tiles})
+	}
+	return out
+}
+
+func meldOf(op engine.CallOp, claimed engine.Tile) engine.Meld {
+	n := 3
+	if op.Type == engine.MeldDaiminkan {
+		n = 4
+	}
+	tiles := make([]engine.Tile, n)
+	for i := range tiles {
+		tiles[i] = claimed
+	}
+	return engine.Meld{Type: op.Type, Tile: claimed, Tiles: tiles}
 }
 
 // Client self-operation types (GameSelfOperation.type).
