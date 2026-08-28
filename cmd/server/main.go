@@ -11,6 +11,7 @@ import (
 
 	"github.com/qy-info/gosoul/internal/admin"
 	"github.com/qy-info/gosoul/internal/config"
+	"github.com/qy-info/gosoul/internal/game"
 	"github.com/qy-info/gosoul/internal/gateway"
 	"github.com/qy-info/gosoul/internal/lobby"
 	"github.com/qy-info/gosoul/internal/protocol"
@@ -62,6 +63,11 @@ func main() {
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
+	gameRouter := router.New(reg)
+	game.Handlers(gameRouter, log)
+	gameSrv := transport.New(gameRouter, reg, log)
+	gameHTTP := &http.Server{Addr: cfg.Game.Addr(), Handler: http.HandlerFunc(gameSrv.HandleHTTP)}
+
 	gauc, err := gateway.LoadOrCreateCA(cfg.Gateway.CA.Cert, cfg.Gateway.CA.Key)
 	if err != nil {
 		slog.Error("gateway ca", "err", err)
@@ -81,10 +87,11 @@ func main() {
 	adm := admin.New(log, svc)
 	adminSrv := &http.Server{Addr: cfg.Admin.Listen, Handler: adm.Handler()}
 
-	errCh := make(chan error, 3)
+	errCh := make(chan error, 4)
 	go func() { errCh <- gw.ListenAndServe(cfg.Gateway.Listen) }()
 	go func() { errCh <- adminSrv.ListenAndServe() }()
 	go func() { errCh <- lobbyHTTP.ListenAndServe() }()
+	go func() { errCh <- gameHTTP.ListenAndServe() }()
 	if httpsAddr := os.Getenv("GOSOUL_HTTPS_ADDR"); httpsAddr != "" {
 		go func() { errCh <- gw.ListenAndServeTLS(httpsAddr) }()
 	}
@@ -111,5 +118,6 @@ func main() {
 	_ = gw.Shutdown(shutdown)
 	_ = adminSrv.Shutdown(shutdown)
 	_ = lobbyHTTP.Shutdown(shutdown)
+	_ = gameHTTP.Shutdown(shutdown)
 	slog.Info("gosoul stopped")
 }

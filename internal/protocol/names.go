@@ -62,12 +62,15 @@ const (
 
 // FastTest 对局方法（对局会话层落地前由 surface 空响应兜底）。
 const (
-	MethodFastTestAuthGame         = ".lq.FastTest.authGame"
-	MethodFastTestSyncGame         = ".lq.FastTest.syncGame"
-	MethodFastTestInputOperation   = ".lq.FastTest.inputOperation"
-	MethodFastTestInputChiPengGang = ".lq.FastTest.inputChiPengGang"
-	MethodFastTestConfirmNewRound  = ".lq.FastTest.confirmNewRound"
-	MethodFastTestEnterGame        = ".lq.FastTest.enterGame"
+	MethodFastTestAuthGame          = ".lq.FastTest.authGame"
+	MethodFastTestSyncGame          = ".lq.FastTest.syncGame"
+	MethodFastTestInputOperation    = ".lq.FastTest.inputOperation"
+	MethodFastTestInputChiPengGang  = ".lq.FastTest.inputChiPengGang"
+	MethodFastTestConfirmNewRound   = ".lq.FastTest.confirmNewRound"
+	MethodFastTestEnterGame         = ".lq.FastTest.enterGame"
+	MethodFastTestCheckNetworkDelay = ".lq.FastTest.checkNetworkDelay"
+	MethodFastTestFinishSyncGame    = ".lq.FastTest.finishSyncGame"
+	MethodFastTestTerminateGame     = ".lq.FastTest.terminateGame"
 )
 
 // ── 消息类型名 ────────────────────────────────────────────────────────
