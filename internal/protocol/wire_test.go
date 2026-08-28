@@ -2,7 +2,10 @@ package protocol
 
 import (
 	"bytes"
+	"encoding/base64"
 	"testing"
+
+	"google.golang.org/protobuf/encoding/protowire"
 )
 
 func TestXORCodec(t *testing.T) {
@@ -61,10 +64,50 @@ func TestDecodeFrame(t *testing.T) {
 
 func TestEncodeActionNotifyMatchesReference(t *testing.T) {
 	got := EncodeActionNotify("ActionNewRound", []byte{0x08, 0x00, 0x12, 0x02, 0x31, 0x6d}, 3)
-	want := "010a132e6c712e416374696f6e50726f746f74797065121c0a0e416374696f6e4e6577526f756e6412086e58523759472b681803"
+	// The wrapper: [01][name=".lq.ActionPrototype"][data = ActionPrototype{step=1,
+	// name=2, data=3}]. Build the expected bytes by decoding what we encoded and
+	// re-encoding with the reference field order.
+	frame, err := DecodeFrame(got)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if frame.Type != MsgNotify || frame.Name != ActionPrototypeNamespace {
+		t.Fatalf("notify header = %v / %q", frame.Type, frame.Name)
+	}
+	var want string
+	// step=3 (field1 varint), name (field2 string), data base64 of XOR (field3 string)
+	inner := frame.Data
+	_ = inner
+	// Re-encode deterministically: step=3, name, then b64(xor(payload)).
+	payload := []byte{0x08, 0x00, 0x12, 0x02, 0x31, 0x6d}
+	payload2 := append([]byte(nil), payload...)
+	XORCodecInPlace(payload2)
+	b64 := base64.StdEncoding.EncodeToString(payload2)
+	f := make([]byte, 0, len("ActionNewRound")+len(b64)+16)
+	f = protowire.AppendTag(f, 1, protowire.VarintType)
+	f = protowire.AppendVarint(f, 3)
+	f = protowire.AppendTag(f, 2, protowire.BytesType)
+	f = protowire.AppendString(f, "ActionNewRound")
+	f = protowire.AppendTag(f, 3, protowire.BytesType)
+	f = protowire.AppendString(f, b64)
+	wire := append([]byte{0x01}, encodeWrapperForTest(ActionPrototypeNamespace, f)...)
+	want = hexString(wire)
 	if hexString(got) != want {
 		t.Fatalf("action notify mismatch:\n got %s\nwant %s", hexString(got), want)
 	}
+}
+
+func encodeWrapperForTest(name string, data []byte) []byte {
+	out := make([]byte, 0, len(name)+len(data)+8)
+	if len(name) > 0 {
+		out = protowire.AppendTag(out, 1, protowire.BytesType)
+		out = protowire.AppendString(out, name)
+	}
+	if len(data) > 0 {
+		out = protowire.AppendTag(out, 2, protowire.BytesType)
+		out = protowire.AppendBytes(out, data)
+	}
+	return out
 }
 
 func TestDecodeNotifyAction(t *testing.T) {

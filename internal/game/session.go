@@ -17,9 +17,9 @@ type session struct {
 	Seat      int
 	GameUUID  string
 	StartedAt time.Time
-	// round count is reserved for the engine integration pass.
-	kyoku int
-	honba int
+	round     *roundState
+	kyoku     int
+	honba     int
 }
 
 // Handlers registers the FastTest surface on r.

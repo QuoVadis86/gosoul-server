@@ -137,6 +137,7 @@ const (
 
 const (
 	ActionPrototypeNamespace = ".lq.ActionPrototype"
+	TypeActionPrototype      = "lq.ActionPrototype"
 	ActionNewRound           = "ActionNewRound"
 	ActionDealTile           = "ActionDealTile"
 	ActionDiscardTile        = "ActionDiscardTile"

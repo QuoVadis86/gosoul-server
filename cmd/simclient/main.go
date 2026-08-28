@@ -7,6 +7,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -192,19 +193,35 @@ func runGameMode(addr string) {
 		if err := c.WriteMessage(websocket.BinaryMessage, frame); err != nil {
 			log.Fatal("write: ", err)
 		}
-		_, data, err := c.ReadMessage()
-		if err != nil {
-			log.Fatal("read: ", err)
+		for {
+			_, data, err := c.ReadMessage()
+			if err != nil {
+				log.Fatal("read: ", err)
+			}
+			f, err := protocol.DecodeFrame(data)
+			if err != nil {
+				log.Fatalf("decode: %v hex=%x", err, data)
+			}
+			if f.Type == protocol.MsgNotify {
+				got := ""
+				if f.Name == protocol.ActionPrototypeNamespace {
+					got = decodeAction(reg, f.Data)
+				} else if len(f.Data) > 0 {
+					got = decodeJSON(reg, f.Name, f.Data)
+				}
+				fmt.Printf(">>> notify name=%q dataLen=%d json=%s\n", f.Name, len(f.Data), got)
+				continue
+			}
+			if f.Type != protocol.MsgResponse {
+				continue
+			}
+			json := ""
+			if len(f.Data) > 0 {
+				json = decodeJSON(reg, respFor(name), f.Data)
+			}
+			fmt.Printf(">>> %s dataLen=%d json=%s\n", name, len(f.Data), json)
+			break
 		}
-		f, err := protocol.DecodeFrame(data)
-		if err != nil {
-			log.Fatalf("decode: %v hex=%x", err, data)
-		}
-		json := ""
-		if len(f.Data) > 0 {
-			json = decodeJSON(reg, respFor(name), f.Data)
-		}
-		fmt.Printf(">>> %s dataLen=%d json=%s\n", name, len(f.Data), json)
 	}
 	send(".lq.FastTest.authGame", "lq.ReqAuthGame", map[string]any{"accountId": 4, "token": "x", "gameUuid": "g1"})
 	send(".lq.FastTest.enterGame", "lq.ReqCommon", map[string]any{})
@@ -224,4 +241,97 @@ func respFor(method string) string {
 	default:
 		return "lq.ResCommon"
 	}
+}
+
+// decodeAction unpacks an ActionPrototype notify payload. The wrapper is
+// {name, data(base64 of xor(payload)), step}: parse it, decode base64, XOR
+// back, and report the inner action name plus hex of the recovered payload.
+func decodeAction(reg *protocol.Registry, data []byte) string {
+	// ActionPrototype is {step=1, name=2, data=3} where data is a base64 string
+	// of the XOR'd inner payload (the reference treats it as a string even
+	// though the proto declares bytes).
+	name, b64, step, ok := parseActionProto(data)
+	if !ok {
+		return "<bad action proto>"
+	}
+	_ = step
+	raw, err := base64.StdEncoding.DecodeString(b64)
+	if err != nil {
+		return "<b64: " + err.Error() + ">"
+	}
+	decoded := protocol.XORCodec(raw)
+	inner, err := reg.NewMessage("lq." + name)
+	if err != nil {
+		return name + " (no proto)"
+	}
+	if err := inner.Unmarshal(decoded); err != nil {
+		return name + " (unmarshal: " + err.Error() + ")"
+	}
+	jb, _ := inner.MarshalJSON()
+	return name + ": " + string(jb)
+}
+
+func parseActionProto(b []byte) (name, b64 string, step uint32, ok bool) {
+	i := 0
+	for i < len(b) {
+		tag, n := rdTag(b[i:])
+		if n <= 0 {
+			return "", "", 0, false
+		}
+		i += n
+		field := int(tag >> 3)
+		switch field {
+		case 1:
+			v, m := rdVar(b[i:])
+			if m <= 0 {
+				return "", "", 0, false
+			}
+			step, i = uint32(v), i+m
+		case 2:
+			l, m := rdVar(b[i:])
+			if m <= 0 || i+m+l > len(b) {
+				return "", "", 0, false
+			}
+			name, i = string(b[i+m:i+m+l]), i+m+l
+		case 3:
+			l, m := rdVar(b[i:])
+			if m <= 0 || i+m+l > len(b) {
+				return "", "", 0, false
+			}
+			b64, i = string(b[i+m:i+m+l]), i+m+l
+		default:
+			_, m := rdVar(b[i:])
+			if m <= 0 {
+				return "", "", 0, false
+			}
+			i += m
+		}
+	}
+	return name, b64, step, true
+}
+
+func rdTag(b []byte) (uint64, int) {
+	var v uint64
+	s := 0
+	for i, c := range b {
+		v |= uint64(c&0x7f) << uint(s)
+		if c < 0x80 {
+			return v, i + 1
+		}
+		s += 7
+	}
+	return 0, 0
+}
+
+func rdVar(b []byte) (int, int) {
+	var v uint64
+	s := 0
+	for i, c := range b {
+		v |= uint64(c&0x7f) << uint(s)
+		if c < 0x80 {
+			return int(v), i + 1
+		}
+		s += 7
+	}
+	return 0, 0
 }

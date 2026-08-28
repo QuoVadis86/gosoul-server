@@ -15,6 +15,8 @@ type Session interface {
 	Respond(msgID uint16, typeName string, v any) error
 	// Notify pushes a server-originated message.
 	Notify(name string, v any) error
+	// ActionNotify pushes a battle action (XOR-wrapped ActionPrototype).
+	ActionNotify(action string, v any, step uint32) error
 }
 
 // Context carries one decoded request to its handler.

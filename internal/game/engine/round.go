@@ -103,6 +103,9 @@ func NewRound(meta RoundMeta, w *Wall, d DecisionDriver) *Round {
 // MaxDora returns the number of dora indicators available given the mode.
 func (r *Round) MaxDora() int { return 5 }
 
+// LeftWall reports how many live tiles remain in the draw stack.
+func (r *Round) LeftWall() int { return len(r.leftWall) }
+
 // Start deals the initial 14th tile to the dealer, sets the first draw, and
 // moves into the picking phase.
 func (r *Round) Start(ctx context.Context) (Tile, error) {

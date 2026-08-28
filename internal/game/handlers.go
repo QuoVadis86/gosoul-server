@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -60,11 +61,18 @@ func (h *handlers) authGame(ctx *router.Context) error {
 }
 
 func (h *handlers) enterGame(ctx *router.Context) error {
-	return ctx.Session.Respond(ctx.MsgID, "lq.ResEnterGame", &resEnterGame{
+	if err := ctx.Session.Respond(ctx.MsgID, "lq.ResEnterGame", &resEnterGame{
 		Error: errorCode(0),
 		IsEnd: false,
 		Step:  0,
-	})
+	}); err != nil {
+		return err
+	}
+	s := h.sessions[ctx.Session]
+	if s == nil || s.round != nil {
+		return nil
+	}
+	return h.startRound(context.Background(), s, ctx.Session)
 }
 
 func (h *handlers) syncGame(ctx *router.Context) error {

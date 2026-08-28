@@ -23,19 +23,20 @@ func appendFramePart(dst []byte, name string, data []byte) []byte {
 	return dst
 }
 
-// EncodeActionPrototype encodes lq.ActionPrototype {name=1, data=2(base64(xor)), step=3}.
+// EncodeActionPrototype encodes lq.ActionPrototype {step=1, name=2,
+// data=3(base64(xor(payload)))} per the liqi.proto definition.
 func EncodeActionPrototype(actionName string, actionData []byte, step uint32) []byte {
 	payload := append([]byte(nil), actionData...)
 	XORCodecInPlace(payload)
 	b64 := base64.StdEncoding.EncodeToString(payload)
 
 	f := make([]byte, 0, len(actionName)+len(b64)+16)
-	f = protowire.AppendTag(f, 1, protowire.BytesType)
-	f = protowire.AppendString(f, actionName)
-	f = protowire.AppendTag(f, 2, protowire.BytesType)
-	f = protowire.AppendString(f, b64)
-	f = protowire.AppendTag(f, 3, protowire.VarintType)
+	f = protowire.AppendTag(f, 1, protowire.VarintType)
 	f = protowire.AppendVarint(f, uint64(step))
+	f = protowire.AppendTag(f, 2, protowire.BytesType)
+	f = protowire.AppendString(f, actionName)
+	f = protowire.AppendTag(f, 3, protowire.BytesType)
+	f = protowire.AppendString(f, b64)
 	return f
 }
 
