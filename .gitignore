@@ -1,0 +1,19 @@
+# binaries
+/gosoul
+/bin/
+/dist/
+
+# runtime data
+data/
+*.db
+*.db-wal
+*.db-shm
+*.db-journal
+
+# editor/os
+.DS_Store
+.idea/
+.vscode/
+
+# agent scratch
+.gosoul-*/
