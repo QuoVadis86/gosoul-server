@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"sort"
+
+	"github.com/qy-info/gosoul/internal/game/yaku"
 )
 
 // ErrNotTurn is returned when an operation is applied out of rotation.
@@ -114,6 +116,44 @@ func (r *Round) LeftWall() int { return len(r.leftWall) }
 func (r *Round) End(winner int) {
 	r.Winner = winner
 	r.phase = PhaseEnded
+}
+
+// ResolveTsumo settles a tsumo win: the dealer pays 2×base when the winner is
+// a non-dealer, or each non-dealer pays 2×base for a dealer win. Scores are
+// updated immediately so observers see the final totals.
+func (r *Round) ResolveTsumo(winSeat int, win *Win) error {
+	if win.Han <= 0 && !win.Yakuman {
+		return nil
+	}
+	dealerPays, nonDealerPays := yaku.TsumoPayment(win.Han, win.Fu, winSeat == r.Dealer)
+	total := 0
+	for i := range r.Scores {
+		if i == winSeat {
+			continue
+		}
+		pay := nonDealerPays
+		if i == r.Dealer {
+			pay = dealerPays
+		}
+		r.Scores[i] -= pay
+		total += pay
+	}
+	r.Scores[winSeat] += total
+	return nil
+}
+
+// ResolveRon settles a ron win paid by the discarder.
+func (r *Round) ResolveRon(winSeat, fromSeat int, win *Win) error {
+	if win.Han <= 0 && !win.Yakuman {
+		return nil
+	}
+	pay := yaku.RonPayment(win.Han, win.Fu, winSeat == r.Dealer)
+	if pay > r.Scores[fromSeat] {
+		pay = r.Scores[fromSeat]
+	}
+	r.Scores[fromSeat] -= pay
+	r.Scores[winSeat] += pay
+	return nil
 }
 
 // Current returns the active seat, or -1 after the round ends.

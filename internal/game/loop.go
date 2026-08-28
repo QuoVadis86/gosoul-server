@@ -206,6 +206,9 @@ func (s *session) applyPlay(ctx context.Context, r *engine.Round, seat int, d de
 	case opTsumo:
 		if w := engine.CheckWin(seat, r.ViewFor(seat).Hand, r.Players[seat].Melds, true, -1, r.Dora, r.IsDoubleRiichi(seat)); w != nil {
 			r.End(w.Seat)
+			if err := r.ResolveTsumo(w.Seat, w); err != nil {
+				return false, seat, err
+			}
 			return true, seat, s.round.drv.Tsumo(ctx, w, step)
 		}
 		// Bad tsumo intent without a win: fall back to a discard.

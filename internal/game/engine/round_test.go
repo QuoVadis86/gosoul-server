@@ -173,3 +173,39 @@ func TestDoubleRiichi(t *testing.T) {
 		t.Fatal("post-discard riichi must not be double")
 	}
 }
+
+func TestResolveTsumo(t *testing.T) {
+	r, _ := newTestRound()
+	// Non-dealer (seat 3) tsumo, 1 han 30 fu: dealer pays 500, others 300.
+	before := append([]int(nil), r.Scores...)
+	win := &Win{Seat: 3, Tsumo: true, Han: 1, Fu: 30}
+	if err := r.ResolveTsumo(3, win); err != nil {
+		t.Fatal(err)
+	}
+	if r.Scores[0]-before[0] != -500 {
+		t.Fatalf("dealer delta = %d, want -500", r.Scores[0]-before[0])
+	}
+	for _, seat := range []int{1, 2} {
+		if r.Scores[seat]-before[seat] != -300 {
+			t.Fatalf("seat %d delta = %d, want -300", seat, r.Scores[seat]-before[seat])
+		}
+	}
+	if r.Scores[3]-before[3] != 1100 {
+		t.Fatalf("winner delta = %d, want +1100", r.Scores[3]-before[3])
+	}
+}
+
+func TestResolveRon(t *testing.T) {
+	r, _ := newTestRound()
+	before := append([]int(nil), r.Scores...)
+	win := &Win{Seat: 2, Tsumo: false, Han: 1, Fu: 30}
+	if err := r.ResolveRon(2, 3, win); err != nil {
+		t.Fatal(err)
+	}
+	if r.Scores[3]-before[3] != -1000 {
+		t.Fatalf("discarder delta = %d, want -1000", r.Scores[3]-before[3])
+	}
+	if r.Scores[2]-before[2] != 1000 {
+		t.Fatalf("winner delta = %d, want +1000", r.Scores[2]-before[2])
+	}
+}
