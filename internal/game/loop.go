@@ -55,6 +55,9 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 	seat := firstSeat
 	first := true
 	for r.LeftWall() > 0 {
+		if r.Current() < 0 {
+			break
+		}
 		if !first {
 			drawn, err := r.Draw(ctx)
 			if err != nil {
@@ -79,8 +82,8 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 			return nil
 		}
 		step++
-		// After a discard, other seats may claim it as a meld.
-		if calledSeat, called, err := s.askCalls(ctx, r, d.tile, nextSeat, step); err != nil {
+		// After a discard, other seats may claim it as a meld or win on it.
+		if calledSeat, called, err := s.askCalls(ctx, r, d.tile, seat, nextSeat, step); err != nil {
 			return err
 		} else if called {
 			seat = calledSeat
@@ -92,10 +95,33 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 	return s.round.drv.LiuJu(ctx, step)
 }
 
-// askCalls polls each other seat for a pon/kan claim on the freshly discarded
-// tile. The first seat that wants it takes the turn; nobody = false.
-func (s *session) askCalls(ctx context.Context, r *engine.Round, claimed engine.Tile, nextSeat int, step uint32) (seat int, called bool, err error) {
+// askCalls polls each other seat for a ron win or pon/kan claim on the freshly
+// discarded tile. Ron takes priority over melds; the first seat that wants a
+// call takes the turn, otherwise nobody acts. discarder is the seat that threw
+// the tile.
+func (s *session) askCalls(ctx context.Context, r *engine.Round, claimed engine.Tile, discarder, nextSeat int, step uint32) (seat int, called bool, err error) {
 	n := r.Meta.NumPlayers
+	for i := 1; i < n; i++ {
+		seatIdx := (nextSeat + i - 1) % n
+		p := &r.Players[seatIdx]
+		if p.Riichi {
+			continue
+		}
+		hand := engine.ContainedTiles(p.Hand, claimed)
+		if w := engine.CheckWin(seatIdx, hand, p.Melds, false, discarder, r.Dora, r.IsDoubleRiichi(seatIdx)); w != nil {
+			robot := s.round.drv.BotFor(seatIdx)
+			if robot != nil {
+				r.End(w.Seat)
+				if err := r.ResolveRon(w.Seat, discarder, w); err != nil {
+					return 0, false, err
+				}
+				if err := s.round.drv.Tsumo(ctx, w, step); err != nil {
+					return 0, false, err
+				}
+				return seatIdx, true, nil
+			}
+		}
+	}
 	for i := 1; i < n; i++ {
 		seatIdx := (nextSeat + i - 1) % n
 		cands := r.Candidates(seatIdx, claimed)

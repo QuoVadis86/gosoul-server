@@ -395,7 +395,7 @@ func TestDriveClaimsPon(t *testing.T) {
 		t.Fatal(err)
 	}
 	// seat 1 (next) holds two 5m; seat 0 discards 5m so pon is offered.
-	claimed, called, err := s.askCalls(context.Background(), r, "5m", 1, 0)
+	claimed, called, err := s.askCalls(context.Background(), r, "5m", 0, 1, 0)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -432,4 +432,53 @@ func newTestRoundForCall() (*engine.Round, *engine.Wall) {
 	}
 	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, w, &fixedBot{})
 	return r, w
+}
+
+func TestDriveClaimsRon(t *testing.T) {
+	fake := &fakeSess{}
+	s := &session{
+		Seat:       0,
+		numPlayers: 4,
+		round:      &roundState{},
+	}
+	// seat 1 holds 123m456m789m + 55p pair (13 tiles); it awaits 5p to finish.
+	w := &engine.Wall{
+		Hands: [][]engine.Tile{
+			{"1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "1p", "1s", "2z", "3z"},
+			{"1m", "2m", "3m", "4m", "5m", "6m", "7s", "8s", "9s", "1p", "1p", "1p", "1z"},
+			{"9m", "9m", "9m", "9p", "9p", "9p", "9s", "9s", "9s", "5z", "5z", "5z", "6z"},
+			{"1m", "1m", "1m", "1p", "1p", "1p", "1s", "1s", "1s", "1z", "2z", "3z", "4z"},
+		},
+		DealerExtra: "5z",
+		DeadWall:    []engine.Tile{"1m", "2m", "3z", "4z", "5z", "6z", "7z", "1p", "2p", "3p", "4p", "5p", "6p", "7p"},
+		Wall:        []engine.Tile{"5p"},
+	}
+	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, w, &fixedBot{})
+	s.round.round = r
+	s.round.drv = newDrive(fake, nil, func(seat int) ai.Player {
+		if seat == 0 {
+			return nil // human
+		}
+		return &fixedBot{tile: ""}
+	})
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Seat 0 (human mode unused here) discards 1z; seat 1 rons it.
+	claimed, called, err := s.askCalls(context.Background(), r, "1z", 0, 1, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !called {
+		t.Fatal("expected ron to be claimed by seat 1")
+	}
+	if claimed != 1 {
+		t.Fatalf("ron seat = %d, want 1", claimed)
+	}
+	if r.Winner != 1 {
+		t.Fatalf("winner = %d, want 1", r.Winner)
+	}
+	if r.Scores[1]-r.Scores[0] <= 0 {
+		t.Fatal("winner should have gained points")
+	}
 }
