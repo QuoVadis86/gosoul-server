@@ -88,6 +88,16 @@ func (m *Message) Marshal() ([]byte, error) {
 
 // MarshalJSON renders the message as JSON (logs, admin inspection).
 func (m *Message) MarshalJSON() ([]byte, error) {
+	return m.ToJSON()
+}
+
+// FromJSON fills the message from its JSON rendering (protojson semantics).
+func (m *Message) FromJSON(data []byte) error {
+	return (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(data, m.ref.Interface())
+}
+
+// ToJSON renders the message as JSON.
+func (m *Message) ToJSON() ([]byte, error) {
 	return protojson.Marshal(m.ref.Interface())
 }
 

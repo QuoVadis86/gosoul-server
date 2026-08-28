@@ -13,7 +13,10 @@ import (
 	"github.com/qy-info/gosoul/internal/config"
 	"github.com/qy-info/gosoul/internal/gateway"
 	"github.com/qy-info/gosoul/internal/lobby"
+	"github.com/qy-info/gosoul/internal/protocol"
+	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/storage"
+	"github.com/qy-info/gosoul/internal/transport"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
@@ -37,7 +40,17 @@ func main() {
 	accounts := user.NewAccountService(store.Account)
 	chars := user.NewCharacterService(store.Character)
 	wallets := user.NewCurrencyService(store.Currency)
-	_ = lobby.NewService(accounts, chars, wallets)
+
+	reg, err := protocol.Load()
+	if err != nil {
+		slog.Error("protocol", "err", err)
+		os.Exit(1)
+	}
+	r := router.New(reg)
+	svc := lobby.NewService(accounts, chars, wallets)
+	lobby.Handlers(svc, accounts, chars, wallets, log, r)
+	transportSrv := transport.New(r, reg, log)
+	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
 	gauc, err := gateway.LoadOrCreateCA(cfg.Gateway.CA.Cert, cfg.Gateway.CA.Key)
 	if err != nil {
@@ -61,9 +74,11 @@ func main() {
 	errCh := make(chan error, 2)
 	go func() { errCh <- gw.ListenAndServe(cfg.Gateway.Listen) }()
 	go func() { errCh <- adminSrv.ListenAndServe() }()
+	go func() { errCh <- lobbyHTTP.ListenAndServe() }()
 
 	slog.Info("gosoul starting",
 		"gateway", cfg.Gateway.Listen,
+		"lobby", cfg.Lobby.Addr(),
 		"admin", cfg.Admin.Listen,
 		"db", cfg.Storage.Path,
 	)
@@ -82,5 +97,6 @@ func main() {
 	defer cancel()
 	_ = gw.Shutdown(shutdown)
 	_ = adminSrv.Shutdown(shutdown)
+	_ = lobbyHTTP.Shutdown(shutdown)
 	slog.Info("gosoul stopped")
 }

@@ -147,3 +147,36 @@ func (r *Registry) buildRoutes() error {
 	}
 	return nil
 }
+
+// EncodeAsDynamic builds wire bytes from a Go value via its JSON form,
+// bridging clean DTO structs onto the dynamic protobuf types.
+func (r *Registry) EncodeAsDynamic(typeName string, v any) ([]byte, error) {
+	m, err := r.NewMessage(typeName)
+	if err != nil {
+		return nil, err
+	}
+	jsonBytes, err := json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.FromJSON(jsonBytes); err != nil {
+		return nil, fmt.Errorf("%s: %w", typeName, err)
+	}
+	return m.Marshal()
+}
+
+// DecodeInto parses wire bytes into a Go value via its JSON form.
+func (r *Registry) DecodeInto(typeName string, data []byte, v any) error {
+	m, err := r.NewMessage(typeName)
+	if err != nil {
+		return err
+	}
+	if err := m.Unmarshal(data); err != nil {
+		return err
+	}
+	jsonBytes, err := m.ToJSON()
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(jsonBytes, v)
+}

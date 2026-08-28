@@ -29,13 +29,13 @@ func (r *accountRepo) Create(ctx context.Context, a *Account) error {
 
 func (r *accountRepo) GetByID(ctx context.Context, id int64) (*Account, error) {
 	return scanAccount(r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, created_at, last_login
+		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, verified, created_at, last_login
 		 FROM accounts WHERE id = ?`, id))
 }
 
 func (r *accountRepo) List(ctx context.Context, limit, offset int) ([]Account, error) {
 	rows, err := r.db.QueryContext(ctx,
-		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, created_at, last_login
+		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, verified, created_at, last_login
 		 FROM accounts ORDER BY id LIMIT ? OFFSET ?`, limit, offset)
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func (r *accountRepo) List(ctx context.Context, limit, offset int) ([]Account, e
 	for rows.Next() {
 		var a Account
 		if err := rows.Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Nickname, &a.AvatarID,
-			&a.LevelID, &a.LevelScore, &a.VIP, &a.Title, &a.Signature, &a.CreatedAt, &a.LastLogin); err != nil {
+			&a.LevelID, &a.LevelScore, &a.VIP, &a.Title, &a.Signature, &a.Verified, &a.CreatedAt, &a.LastLogin); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -55,7 +55,7 @@ func (r *accountRepo) List(ctx context.Context, limit, offset int) ([]Account, e
 
 func (r *accountRepo) GetByUsername(ctx context.Context, username string) (*Account, error) {
 	return scanAccount(r.db.QueryRowContext(ctx,
-		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, created_at, last_login
+		`SELECT id, username, password_hash, nickname, avatar_id, level_id, level_score, vip, title, signature, verified, created_at, last_login
 		 FROM accounts WHERE username = ?`, username))
 }
 
@@ -67,7 +67,7 @@ func (r *accountRepo) UpdateLogin(ctx context.Context, id int64, lastLogin int64
 func scanAccount(row *sql.Row) (*Account, error) {
 	var a Account
 	err := row.Scan(&a.ID, &a.Username, &a.PasswordHash, &a.Nickname, &a.AvatarID,
-		&a.LevelID, &a.LevelScore, &a.VIP, &a.Title, &a.Signature, &a.CreatedAt, &a.LastLogin)
+		&a.LevelID, &a.LevelScore, &a.VIP, &a.Title, &a.Signature, &a.Verified, &a.CreatedAt, &a.LastLogin)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}

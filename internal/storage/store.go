@@ -33,6 +33,7 @@ type Account struct {
 	VIP          int64
 	Title        int64
 	Signature    string
+	Verified     int64
 	CreatedAt    int64
 	LastLogin    int64
 }
