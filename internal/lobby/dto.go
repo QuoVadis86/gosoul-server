@@ -14,6 +14,80 @@ func accessToken(accountID int64) string { return fmt.Sprintf("local-token-%d", 
 // empty is the generic success envelope.
 type empty struct{}
 
+// resAnnouncement answers .lq.Lobby.fetchAnnouncement.
+type resAnnouncement struct {
+	Error         *errBody `json:"error"`
+	Announcements []any    `json:"announcements"`
+}
+
+// resOpenAllRewardItem answers .lq.Lobby.openAllRewardItem.
+type resOpenAllRewardItem struct {
+	Error   *errBody `json:"error"`
+	Results []any    `json:"results"`
+}
+
+// resFetchQuestionnaireList answers .lq.Lobby.fetchQuestionnaireList.
+type resFetchQuestionnaireList struct {
+	Error        *errBody `json:"error"`
+	List         []any    `json:"list"`
+	FinishedList []any    `json:"finishedList"`
+}
+
+// resFetchChallengeInfo answers .lq.Lobby.fetchChallengeInfo.
+type resFetchChallengeInfo struct {
+	Error *errBody `json:"error"`
+}
+
+// resChallengeSeasonInfo answers .lq.Lobby.fetchChallengeSeason.
+type resChallengeSeasonInfo struct {
+	Error *errBody `json:"error"`
+}
+
+// resFetchSeerReportList answers .lq.Lobby.fetchSeerReportList.
+type resFetchSeerReportList struct {
+	Error          *errBody `json:"error"`
+	SeerReportList []any    `json:"seerReportList"`
+}
+
+// resReviveCoinInfo answers .lq.Lobby.fetchReviveCoinInfo.
+type resReviveCoinInfo struct {
+	Error     *errBody `json:"error"`
+	HasGained bool     `json:"hasGained"`
+}
+
+// resDailyTask answers .lq.Lobby.fetchDailyTask.
+type resDailyTask struct {
+	Error             *errBody `json:"error"`
+	Progresses        []any    `json:"progresses"`
+	HasRefreshCount   bool     `json:"hasRefreshCount"`
+	MaxDailyTaskCount uint32   `json:"maxDailyTaskCount"`
+	RefreshCount      uint32   `json:"refreshCount"`
+}
+
+// resCommentSetting answers .lq.Lobby.fetchCommentSetting.
+type resCommentSetting struct {
+	Error          *errBody `json:"error"`
+	CommentSetting struct {
+		CommentAllowType uint32 `json:"commentAllowType"`
+	} `json:"commentSetting"`
+}
+
+// resFetchAchievementRate answers .lq.Lobby.fetchAchievementRate.
+type resFetchAchievementRate struct {
+	Error *errBody `json:"error"`
+}
+
+// resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
+type resFetchRollingNotice struct {
+	Error *errBody `json:"error"`
+}
+
+// resActivityList answers .lq.Lobby.fetchActivity.
+type resActivityList struct {
+	Error        *errBody `json:"error"`
+	ActivityList []any    `json:"activityList"`
+}
+
 // errorCode is the shared way to answer with a non-zero error code.
 func errorCode(code uint32) *errBody {
 	return &errBody{Code: code}
@@ -151,10 +225,12 @@ type resFetchInfo struct {
 		Mails []any    `json:"mails"`
 	} `json:"mailInfo"`
 	CharacterInfo struct {
-		Error           *errBody  `json:"error"`
-		Characters      []charRPC `json:"characters"`
-		Skins           []uint32  `json:"skins"`
-		MainCharacterID uint32    `json:"mainCharacterId"`
+		Error            *errBody  `json:"error"`
+		Characters       []charRPC `json:"characters"`
+		Skins            []uint32  `json:"skins"`
+		MainCharacterID  uint32    `json:"mainCharacterId"`
+		CharacterSort    []uint32  `json:"characterSort"`
+		HiddenCharacters []uint32  `json:"hiddenCharacters"`
 	} `json:"characterInfo"`
 	BagInfo struct {
 		Error *errBody `json:"error"`
@@ -209,16 +285,16 @@ type numEntry struct {
 // accountRPC projects an account for client rendering.
 func (h *handler) accountRPC(home *user.Home) *accountRPC {
 	return &accountRPC{
-		AccountID:   uint32(home.Account.ID),
-		Nickname:    home.Account.Nickname,
-		AvatarID:    uint32(home.Account.AvatarID),
-		Level:       &levelRPC{ID: uint32(home.Account.LevelID), Score: uint32(home.Account.LevelScore)},
-		Level3:      &levelRPC{ID: 1001, Score: 0},
-		VIP:         uint32(home.Account.VIP),
-		Title:       uint32(home.Account.Title),
-		LoginTime:   uint32(home.Account.LastLogin),
-		LogoutTime:  0,
-		RoomID:      0,
+		AccountID:  uint32(home.Account.ID),
+		Nickname:   home.Account.Nickname,
+		AvatarID:   uint32(home.Account.AvatarID),
+		Level:      &levelRPC{ID: uint32(home.Account.LevelID), Score: uint32(home.Account.LevelScore)},
+		Level3:     &levelRPC{ID: 1001, Score: 0},
+		VIP:        uint32(home.Account.VIP),
+		Title:      uint32(home.Account.Title),
+		LoginTime:  uint32(home.Account.LastLogin),
+		LogoutTime: 0,
+		RoomID:     0,
 		AntiAddiction: struct {
 			OnlineDuration uint32 `json:"onlineDuration"`
 		}{},
@@ -258,6 +334,14 @@ func characterSkins(home *user.Home) []uint32 {
 	return out
 }
 
+func (h *handler) charIDs(home *user.Home) []uint32 {
+	out := make([]uint32, 0, len(home.Characters))
+	for _, c := range home.Characters {
+		out = append(out, uint32(c.CharID))
+	}
+	return out
+}
+
 func (h *handler) updatePayload(accountID int64) *updatePayload {
 	home, err := h.user.Home(context.Background(), accountID)
 	if err != nil {
@@ -272,6 +356,7 @@ func (h *handler) updatePayload(accountID int64) *updatePayload {
 	}
 	u.Character.Characters = h.charRPCs(home)
 	u.Character.Skins = characterSkins(home)
+	u.Character.MainCharacterID = 200001
 	if len(home.Characters) > 0 {
 		u.Character.MainCharacterID = uint32(home.Characters[0].CharID)
 	}

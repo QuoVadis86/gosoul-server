@@ -35,6 +35,19 @@ const (
 	MethodLobbyFetchInfo           = ".lq.Lobby.fetchInfo"
 	MethodLobbyFetchLastPrivacy    = ".lq.Lobby.fetchLastPrivacy"
 	MethodLobbyFetchConnectionInfo = ".lq.Lobby.fetchConnectionInfo"
+
+	MethodLobbyFetchAnnouncement    = ".lq.Lobby.fetchAnnouncement"
+	MethodLobbyOpenAllRewardItem    = ".lq.Lobby.openAllRewardItem"
+	MethodLobbyFetchQuestionnaire   = ".lq.Lobby.fetchQuestionnaireList"
+	MethodLobbyFetchChallengeInfo   = ".lq.Lobby.fetchChallengeInfo"
+	MethodLobbyFetchChallengeSeason = ".lq.Lobby.fetchChallengeSeason"
+	MethodLobbyFetchSeerReportList  = ".lq.Lobby.fetchSeerReportList"
+	MethodLobbyFetchReviveCoin      = ".lq.Lobby.fetchReviveCoinInfo"
+	MethodLobbyFetchDailyTask       = ".lq.Lobby.fetchDailyTask"
+	MethodLobbyFetchCommentSetting  = ".lq.Lobby.fetchCommentSetting"
+	MethodLobbyFetchAchievementRate = ".lq.Lobby.fetchAchievementRate"
+	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
+	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 )
 
 // FastTest 对局方法（对局会话层落地前由 surface 空响应兜底）。
@@ -73,6 +86,20 @@ const (
 	TypeResSignupAccount = "lq.ResSignupAccount"
 	TypeResOauth2Signup  = "lq.ResOauth2Signup"
 	TypeResFastLogin     = "lq.ResFastLogin"
+
+	TypeResAnnouncement         = "lq.ResAnnouncement"
+	TypeResOpenAllRewardItem    = "lq.ResOpenAllRewardItem"
+	TypeResFetchQuestionnaire   = "lq.ResFetchQuestionnaireList"
+	TypeResFetchChallengeInfo   = "lq.ResFetchChallengeInfo"
+	TypeResChallengeSeasonInfo  = "lq.ResChallengeSeasonInfo"
+	TypeResFetchSeerReportList  = "lq.ResFetchSeerReportList"
+	TypeResReviveCoinInfo       = "lq.ResReviveCoinInfo"
+	TypeResDailyTask            = "lq.ResDailyTask"
+	TypeResCommentSetting       = "lq.ResCommentSetting"
+	TypeResFetchAchievementRate = "lq.ResFetchAchievementRate"
+	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
+	TypeResActivityList         = "lq.ResActivityList"
+	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"
 )
 
 // ── Notify 名 ─────────────────────────────────────────────────────────

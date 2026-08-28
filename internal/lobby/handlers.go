@@ -56,6 +56,18 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchLastPrivacy, h.fetchLastPrivacy)
 	r.Handle(protocol.MethodLobbyFetchInfo, h.fetchInfo)
 	r.Handle(protocol.MethodLobbyFetchConnectionInfo, h.fetchConnectionInfo)
+	r.Handle(protocol.MethodLobbyFetchAnnouncement, h.fetchAnnouncement)
+	r.Handle(protocol.MethodLobbyOpenAllRewardItem, h.openAllRewardItem)
+	r.Handle(protocol.MethodLobbyFetchQuestionnaire, h.fetchQuestionnaire)
+	r.Handle(protocol.MethodLobbyFetchChallengeInfo, h.fetchChallengeInfo)
+	r.Handle(protocol.MethodLobbyFetchChallengeSeason, h.fetchChallengeSeason)
+	r.Handle(protocol.MethodLobbyFetchSeerReportList, h.fetchSeerReportList)
+	r.Handle(protocol.MethodLobbyFetchReviveCoin, h.fetchReviveCoin)
+	r.Handle(protocol.MethodLobbyFetchDailyTask, h.fetchDailyTask)
+	r.Handle(protocol.MethodLobbyFetchCommentSetting, h.fetchCommentSetting)
+	r.Handle(protocol.MethodLobbyFetchAchievementRate, h.fetchAchievementRate)
+	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
+	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
 
 	registerEmptySurface(r, reg, log)
 }
@@ -246,9 +258,11 @@ func (h *handler) fetchInfo(ctx *router.Context) error {
 	dto := &resFetchInfo{}
 	dto.ServerTime.ServerTime = now()
 	dto.CharacterInfo.Characters = h.charRPCs(home)
+	dto.CharacterInfo.Skins = characterSkins(home)
+	dto.CharacterInfo.CharacterSort = h.charIDs(home)
+	dto.CharacterInfo.MainCharacterID = 200001
 	if len(home.Characters) > 0 {
 		dto.CharacterInfo.MainCharacterID = uint32(home.Characters[0].CharID)
-		dto.CharacterInfo.Skins = characterSkins(home)
 	}
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchInfo, dto)
 }
@@ -268,6 +282,54 @@ func (h *handler) fetchConnectionInfo(ctx *router.Context) error {
 	info.ClientEndpoint.Port = 8443
 	info.ClientEndpoint.Family = "IPv4"
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResConnectionInfo, info)
+}
+
+func (h *handler) fetchAnnouncement(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResAnnouncement, &resAnnouncement{Error: &errBody{}})
+}
+
+func (h *handler) openAllRewardItem(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOpenAllRewardItem, &resOpenAllRewardItem{Error: &errBody{}})
+}
+
+func (h *handler) fetchQuestionnaire(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchQuestionnaire, &resFetchQuestionnaireList{Error: &errBody{}})
+}
+
+func (h *handler) fetchChallengeInfo(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchChallengeInfo, &resFetchChallengeInfo{Error: &errBody{}})
+}
+
+func (h *handler) fetchChallengeSeason(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResChallengeSeasonInfo, &resChallengeSeasonInfo{Error: &errBody{}})
+}
+
+func (h *handler) fetchSeerReportList(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchSeerReportList, &resFetchSeerReportList{Error: &errBody{}})
+}
+
+func (h *handler) fetchReviveCoin(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResReviveCoinInfo, &resReviveCoinInfo{Error: &errBody{}})
+}
+
+func (h *handler) fetchDailyTask(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResDailyTask, &resDailyTask{Error: &errBody{}})
+}
+
+func (h *handler) fetchCommentSetting(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommentSetting, &resCommentSetting{Error: &errBody{}})
+}
+
+func (h *handler) fetchAchievementRate(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchAchievementRate, &resFetchAchievementRate{Error: &errBody{}})
+}
+
+func (h *handler) fetchRollingNotice(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchRollingNotice, &resFetchRollingNotice{Error: &errBody{}})
+}
+
+func (h *handler) fetchActivity(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResActivityList, &resActivityList{Error: &errBody{}})
 }
 
 func (h *handler) ok(ctx *router.Context) error {

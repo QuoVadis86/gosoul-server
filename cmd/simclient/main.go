@@ -2,7 +2,7 @@
 // WebSocket and prints the raw frames received, so a Go server's ResLogin can
 // be diffed byte-for-byte against the reference implementation.
 //
-//   go run ./cmd/simclient -addr ws://127.0.0.1:8441
+//	go run ./cmd/simclient -addr ws://127.0.0.1:8441
 package main
 
 import (
@@ -91,17 +91,33 @@ func main() {
 	recv(protocol.TypeResLogin)
 
 	send(protocol.MethodLobbyLogin, protocol.TypeReqLogin, map[string]any{
-		"account": *login,
-		"password": *pwd,
-		"device": map[string]any{"platform": "pc", "os": "mac", "isBrowser": true, "software": "Chrome", "salePlatform": "web", "screenType": 1},
-		"clientVersion": map[string]any{"resource": "0.16.272", "package": "4.0.46"},
-		"currencyPlatforms": []any{1, 2, 5, 6, 8, 10, 11},
-		"genAccessToken": true,
-		"type": 0,
+		"account":             *login,
+		"password":            *pwd,
+		"device":              map[string]any{"platform": "pc", "os": "mac", "isBrowser": true, "software": "Chrome", "salePlatform": "web", "screenType": 1},
+		"clientVersion":       map[string]any{"resource": "0.16.272", "package": "4.0.46"},
+		"currencyPlatforms":   []any{1, 2, 5, 6, 8, 10, 11},
+		"genAccessToken":      true,
+		"type":                0,
 		"clientVersionString": "WebGL_2022-0.16.272",
-		"tag": "cn",
+		"tag":                 "cn",
 	})
 	recv(protocol.TypeResLogin)
+
+	seq := [][2]string{
+		{".lq.Lobby.loginBeat", "lq.ResCommon"},
+		{".lq.Lobby.loginSuccess", "lq.ResCommon"},
+		{".lq.Lobby.fetchAnnouncement", "lq.ResAnnouncement"},
+		{".lq.Lobby.fetchInfo", "lq.ResFetchInfo"},
+		{".lq.Lobby.fetchReviveCoinInfo", "lq.ResReviveCoinInfo"},
+		{".lq.Lobby.fetchDailyTask", "lq.ResDailyTask"},
+		{".lq.Lobby.fetchAchievementRate", "lq.ResFetchAchievementRate"},
+		{".lq.Lobby.fetchCommentSetting", "lq.ResCommentSetting"},
+		{".lq.Lobby.fetchRollingNotice", "lq.ResFetchRollingNotice"},
+	}
+	for _, step := range seq {
+		send(step[0], "", nil)
+		recv(step[1])
+	}
 
 	if *method != "" {
 		send(*method, "", nil)
