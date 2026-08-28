@@ -101,6 +101,18 @@ type resOpenGacha struct {
 	RemainCount   uint32   `json:"remainCount"`
 }
 
+// rewardSlot mirrors lq.RewardSlot.
+type rewardSlot struct {
+	ID    uint32 `json:"id"`
+	Count uint32 `json:"count"`
+}
+
+// resBuyFromShop answers .lq.Lobby.buyFromShop.
+type resBuyFromShop struct {
+	Error   *errBody     `json:"error"`
+	Rewards []rewardSlot `json:"rewards"`
+}
+
 // resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
 type resFetchRollingNotice struct {
 	Error *errBody `json:"error"`

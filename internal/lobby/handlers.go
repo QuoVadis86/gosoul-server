@@ -18,6 +18,7 @@ import (
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
+	"github.com/qy-info/gosoul/internal/shop"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
@@ -71,6 +72,7 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchAchievementRate, h.fetchAchievementRate)
 	r.Handle(protocol.MethodLobbyFetchAchievement, h.fetchAchievement)
 	r.Handle(protocol.MethodLobbyOpenGacha, h.openGacha)
+	r.Handle(protocol.MethodLobbyBuyFromShop, h.buyFromShop)
 	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
 	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
 
@@ -94,6 +96,39 @@ type handler struct {
 	rooms    *room.Service
 	gameAddr string
 	gacha    *gacha.Service
+	shop     *shop.Service
+}
+
+// ensureShop lazily builds the currency shop over the user service.
+func (h *handler) ensureShop() *shop.Service {
+	if h.shop == nil {
+		h.shop = shop.New(userShop{h.user}, shopCatalog())
+	}
+	return h.shop
+}
+
+func shopCatalog() []shop.Goods {
+	return []shop.Goods{
+		{ID: 1, Cost: 100, Currency: shop.Diamond, RewardID: 100, RewardCount: 5000}, // 5000 gold
+		{ID: 2, Cost: 10, Currency: shop.SkinTicket, RewardID: 100, RewardCount: 500},
+	}
+}
+
+// userShop adapts the user domain to the shop teller contract.
+type userShop struct{ svc *user.Service }
+
+func (u userShop) Balance(ctx context.Context, id int64) (int64, int64, int64, error) {
+	w, err := u.svc.Balance(ctx, id)
+	if err != nil {
+		return 0, 0, 0, err
+	}
+	return w.Gold, w.Diamond, w.SkinTicket, nil
+}
+func (u userShop) Charge(ctx context.Context, id, g, d, t int64) error {
+	return u.svc.Grant(ctx, id, g, d, t)
+}
+func (u userShop) Grant(ctx context.Context, id, g, d, t int64) error {
+	return u.svc.Grant(ctx, id, g, d, t)
 }
 
 // ensureGacha lazily builds the character lottery over the user service.
@@ -406,6 +441,29 @@ func (h *handler) openGacha(ctx *router.Context) error {
 		out.ResultList = append(out.ResultList, uint32(id))
 	}
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOpenGacha, out)
+}
+
+// buyFromShop purchases a catalog item with the account's currency.
+func (h *handler) buyFromShop(ctx *router.Context) error {
+	var req struct {
+		GoodsID uint32 `json:"goodsId"`
+		Count   uint32 `json:"count"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqBuyFromShop", ctx.Payload, &req); err != nil {
+		return err
+	}
+	slots, err := h.ensureShop().Purchase(context.Background(), ctx.Session.AccountID(), req.GoodsID, int64(req.Count))
+	if errors.Is(err, shop.ErrNoGoods) || errors.Is(err, shop.ErrNotEnough) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResBuyFromShop, &resBuyFromShop{Error: errorCode(4001)})
+	}
+	if err != nil {
+		return err
+	}
+	out := &resBuyFromShop{Error: &errBody{}}
+	for _, s := range slots {
+		out.Rewards = append(out.Rewards, rewardSlot{ID: s.ID, Count: s.Count})
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResBuyFromShop, out)
 }
 
 func (h *handler) fetchRollingNotice(ctx *router.Context) error {

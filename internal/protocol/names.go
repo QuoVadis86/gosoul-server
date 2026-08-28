@@ -48,6 +48,7 @@ const (
 	MethodLobbyFetchAchievementRate = ".lq.Lobby.fetchAchievementRate"
 	MethodLobbyFetchAchievement     = ".lq.Lobby.fetchAchievement"
 	MethodLobbyOpenGacha            = ".lq.Lobby.openGacha"
+	MethodLobbyBuyFromShop          = ".lq.Lobby.buyFromShop"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 
@@ -120,6 +121,7 @@ const (
 	TypeResFetchAchievementRate = "lq.ResFetchAchievementRate"
 	TypeResAchievement          = "lq.ResAchievement"
 	TypeResOpenGacha            = "lq.ResOpenGacha"
+	TypeResBuyFromShop          = "lq.ResBuyFromShop"
 	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"

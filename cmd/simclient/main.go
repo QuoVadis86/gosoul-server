@@ -132,6 +132,10 @@ func main() {
 	// Character lottery: paid draw, expect a char id back.
 	send(".lq.Lobby.openGacha", "lq.ReqOpenGacha", map[string]any{"activityId": 1, "count": 1})
 	recv("lq.ResOpenGacha")
+
+	// Buy 5000 gold for 100 diamonds.
+	send(".lq.Lobby.buyFromShop", "lq.ReqBuyFromShop", map[string]any{"goodsId": 1, "count": 1})
+	recv("lq.ResBuyFromShop")
 	for _, step := range seq {
 		send(step[0], "", nil)
 		recv(step[1])
