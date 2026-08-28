@@ -35,7 +35,7 @@ func startLobbyServer(t *testing.T) (*protocol.Registry, *httptest.Server) {
 		t.Fatal(err)
 	}
 	rtr := router.New(reg)
-	svc := user.NewService(store.Account, store.Character, store.Wallet)
+	svc := user.NewService(store.Account, store.Character, store.Wallet, store.Achieve)
 	lobby.Handlers(svc, log, rtr, reg, room.New(nil), "ws://127.0.0.1:8443")
 
 	server := New(rtr, reg, log)

@@ -187,3 +187,34 @@ func (r *paipuRepo) List(ctx context.Context, limit int) ([]paipu.Record, error)
 	}
 	return out, rows.Err()
 }
+
+// achieveRepo persists achievement progress rows.
+type achieveRepo struct{ db *sql.DB }
+
+func (r *achieveRepo) List(ctx context.Context, accountID int64) ([]user.Achievement, error) {
+	rows, err := r.db.QueryContext(ctx,
+		`SELECT account_id, ach_id, progress, rewarded FROM achievements WHERE account_id=?`,
+		accountID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []user.Achievement
+	for rows.Next() {
+		var a user.Achievement
+		if err := rows.Scan(&a.AccountID, &a.AchieveID, &a.Progress, &a.Rewarded); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+func (r *achieveRepo) Set(ctx context.Context, a user.Achievement) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO achievements(account_id, ach_id, progress, rewarded)
+		 VALUES(?, ?, ?, ?)
+		 ON CONFLICT(account_id, ach_id) DO UPDATE SET progress=excluded.progress, rewarded=excluded.rewarded`,
+		a.AccountID, a.AchieveID, a.Progress, a.Rewarded)
+	return err
+}

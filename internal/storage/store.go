@@ -26,6 +26,7 @@ type Store struct {
 	Account   user.AccountRepo
 	Character user.CharacterRepo
 	Wallet    user.WalletRepo
+	Achieve   user.AchieveRepo
 	Paipu     paipu.Store
 }
 
@@ -50,6 +51,7 @@ func Open(path string) (*Store, error) {
 		Account:   &accountRepo{db: db},
 		Character: &characterRepo{db: db},
 		Wallet:    &walletRepo{db: db},
+		Achieve:   &achieveRepo{db: db},
 		Paipu:     &paipuRepo{db: db},
 	}, nil
 }

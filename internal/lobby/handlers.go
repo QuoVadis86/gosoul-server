@@ -67,6 +67,7 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchDailyTask, h.fetchDailyTask)
 	r.Handle(protocol.MethodLobbyFetchCommentSetting, h.fetchCommentSetting)
 	r.Handle(protocol.MethodLobbyFetchAchievementRate, h.fetchAchievementRate)
+	r.Handle(protocol.MethodLobbyFetchAchievement, h.fetchAchievement)
 	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
 	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
 
@@ -333,6 +334,24 @@ func (h *handler) fetchCommentSetting(ctx *router.Context) error {
 
 func (h *handler) fetchAchievementRate(ctx *router.Context) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResFetchAchievementRate, &resFetchAchievementRate{Error: &errBody{}})
+}
+
+// fetchAchievement reports recorded achievement progress for the account.
+func (h *handler) fetchAchievement(ctx *router.Context) error {
+	achvs, err := h.user.Achievements(context.Background(), ctx.Session.AccountID())
+	if err != nil {
+		return err
+	}
+	res := &resAchievement{Error: &errBody{}}
+	for _, a := range achvs {
+		res.Progresses = append(res.Progresses, achievementProgress{
+			ID:       uint32(a.AchieveID),
+			Counter:  uint32(a.Progress),
+			Achieved: a.Progress > 0,
+			Rewarded: a.Rewarded > 0,
+		})
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResAchievement, res)
 }
 
 func (h *handler) fetchRollingNotice(ctx *router.Context) error {

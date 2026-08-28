@@ -20,18 +20,29 @@ var ErrBadPassword = errors.New("user: bad password")
 // DefaultAllowance seeds new accounts on their first login.
 var DefaultAllowance = struct{ Gold, Diamond, SkinTicket int64 }{100000, 1000, 100}
 
-// Service is the aggregated account domain. It composes the three portraits
-// (accounts, characters, wallets) so read models like Home are assembled with
-// one call from the domain side.
+// Service is the aggregated account domain. It composes the four portraits
+// (accounts, characters, wallets, achievements) so read models like Home are
+// assembled with one call from the domain side.
 type Service struct {
 	accounts AccountRepo
 	chars    CharacterRepo
 	wallets  WalletRepo
+	achv     AchieveRepo
 }
 
 // NewService wires the domain over its persistence ports.
-func NewService(a AccountRepo, c CharacterRepo, w WalletRepo) *Service {
-	return &Service{accounts: a, chars: c, wallets: w}
+func NewService(a AccountRepo, c CharacterRepo, w WalletRepo, ach AchieveRepo) *Service {
+	return &Service{accounts: a, chars: c, wallets: w, achv: ach}
+}
+
+// Achievements lists every recorded achievement entry for an account.
+func (s *Service) Achievements(ctx context.Context, accountID int64) ([]Achievement, error) {
+	return s.achv.List(ctx, accountID)
+}
+
+// SetAchievement records or updates one achievement's progress.
+func (s *Service) SetAchievement(ctx context.Context, a Achievement) error {
+	return s.achv.Set(ctx, a)
 }
 
 // Signup registers a new account. The client already digests the password

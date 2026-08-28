@@ -39,3 +39,11 @@ type Wallet struct {
 	Diamond    int64
 	SkinTicket int64
 }
+
+// Achievement tracks one achievement's runtime progress for an account.
+type Achievement struct {
+	AccountID int64
+	AchieveID int64
+	Progress  int64
+	Rewarded  int64
+}

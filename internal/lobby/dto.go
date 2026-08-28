@@ -78,6 +78,21 @@ type resFetchAchievementRate struct {
 	Error *errBody `json:"error"`
 }
 
+// achievementProgress mirrors lq.AchievementProgress.
+type achievementProgress struct {
+	ID       uint32 `json:"id"`
+	Counter  uint32 `json:"counter"`
+	Achieved bool   `json:"achieved"`
+	Rewarded bool   `json:"rewarded"`
+}
+
+// resAchievement answers .lq.Lobby.fetchAchievement.
+type resAchievement struct {
+	Error         *errBody              `json:"error"`
+	Progresses    []achievementProgress `json:"progresses"`
+	RewardedGroup []uint32              `json:"rewardedGroup"`
+}
+
 // resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
 type resFetchRollingNotice struct {
 	Error *errBody `json:"error"`

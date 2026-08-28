@@ -97,3 +97,36 @@ func TestMigrationIdempotent(t *testing.T) {
 	}
 	defer s2.Close()
 }
+
+func TestAchievementSetAndList(t *testing.T) {
+	db, err := Open(t.TempDir() + "/ach.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	acc := &user.Account{Username: "achu", PasswordHash: "h", Nickname: "A", CreatedAt: 1}
+	if err := db.Account.Create(context.Background(), acc); err != nil {
+		t.Fatal(err)
+	}
+	entry := user.Achievement{AccountID: acc.ID, AchieveID: 1001, Progress: 3, Rewarded: 1}
+	if err := db.Achieve.Set(context.Background(), entry); err != nil {
+		t.Fatal(err)
+	}
+	got, err := db.Achieve.List(context.Background(), acc.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].AchieveID != 1001 || got[0].Progress != 3 {
+		t.Fatalf("achievements = %+v", got)
+	}
+	// upsert overwrites progress
+	entry.Progress = 5
+	if err := db.Achieve.Set(context.Background(), entry); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = db.Achieve.List(context.Background(), acc.ID)
+	if got[0].Progress != 5 {
+		t.Fatalf("progress after upsert = %d, want 5", got[0].Progress)
+	}
+}

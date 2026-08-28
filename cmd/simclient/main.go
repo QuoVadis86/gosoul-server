@@ -126,6 +126,7 @@ func main() {
 		{".lq.Lobby.fetchAchievementRate", "lq.ResFetchAchievementRate"},
 		{".lq.Lobby.fetchCommentSetting", "lq.ResCommentSetting"},
 		{".lq.Lobby.fetchRollingNotice", "lq.ResFetchRollingNotice"},
+		{".lq.Lobby.fetchAchievement", "lq.ResAchievement"},
 	}
 	for _, step := range seq {
 		send(step[0], "", nil)

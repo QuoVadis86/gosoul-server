@@ -51,7 +51,7 @@ func main() {
 	}
 	defer store.Close()
 
-	svc := user.NewService(store.Account, store.Character, store.Wallet)
+	svc := user.NewService(store.Account, store.Character, store.Wallet, store.Achieve)
 
 	reg, err := protocol.Load()
 	if err != nil {

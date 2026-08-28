@@ -46,6 +46,7 @@ const (
 	MethodLobbyFetchDailyTask       = ".lq.Lobby.fetchDailyTask"
 	MethodLobbyFetchCommentSetting  = ".lq.Lobby.fetchCommentSetting"
 	MethodLobbyFetchAchievementRate = ".lq.Lobby.fetchAchievementRate"
+	MethodLobbyFetchAchievement     = ".lq.Lobby.fetchAchievement"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 
@@ -116,6 +117,7 @@ const (
 	TypeResDailyTask            = "lq.ResDailyTask"
 	TypeResCommentSetting       = "lq.ResCommentSetting"
 	TypeResFetchAchievementRate = "lq.ResFetchAchievementRate"
+	TypeResAchievement          = "lq.ResAchievement"
 	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"

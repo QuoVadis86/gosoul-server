@@ -24,3 +24,9 @@ type WalletRepo interface {
 	AddDiamond(ctx context.Context, accountID, delta int64) error
 	AddSkinTicket(ctx context.Context, accountID, delta int64) error
 }
+
+// AchieveRepo persists achievement progress.
+type AchieveRepo interface {
+	List(ctx context.Context, accountID int64) ([]Achievement, error)
+	Set(ctx context.Context, a Achievement) error
+}
