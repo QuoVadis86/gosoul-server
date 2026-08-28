@@ -12,6 +12,7 @@ import (
 
 	_ "modernc.org/sqlite"
 
+	"github.com/qy-info/gosoul/internal/paipu"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
@@ -25,6 +26,7 @@ type Store struct {
 	Account   user.AccountRepo
 	Character user.CharacterRepo
 	Wallet    user.WalletRepo
+	Paipu     paipu.Store
 }
 
 // Open boots SQLite at path and applies all migrations.
@@ -48,6 +50,7 @@ func Open(path string) (*Store, error) {
 		Account:   &accountRepo{db: db},
 		Character: &characterRepo{db: db},
 		Wallet:    &walletRepo{db: db},
+		Paipu:     &paipuRepo{db: db},
 	}, nil
 }
 

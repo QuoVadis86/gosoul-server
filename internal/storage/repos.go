@@ -3,7 +3,9 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"time"
 
+	"github.com/qy-info/gosoul/internal/paipu"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
@@ -143,4 +145,45 @@ func (r *walletRepo) AddDiamond(ctx context.Context, accountID, delta int64) err
 
 func (r *walletRepo) AddSkinTicket(ctx context.Context, accountID, delta int64) error {
 	return r.add(ctx, accountID, delta, "skin_ticket")
+}
+
+// paipuRepo persists finished game records.
+type paipuRepo struct{ db *sql.DB }
+
+func (r *paipuRepo) Save(ctx context.Context, rec paipu.Record) error {
+	_, err := r.db.ExecContext(ctx,
+		`INSERT INTO paipu(uuid, json, created_at) VALUES(?, ?, ?)
+		 ON CONFLICT(uuid) DO UPDATE SET json=excluded.json, created_at=excluded.created_at`,
+		rec.UUID, rec.JSON, rec.CreatedAt.Unix())
+	return err
+}
+
+func (r *paipuRepo) Get(ctx context.Context, uuid string) (*paipu.Record, error) {
+	row := r.db.QueryRowContext(ctx, `SELECT uuid, json, created_at FROM paipu WHERE uuid=?`, uuid)
+	var rec paipu.Record
+	var ts int64
+	if err := row.Scan(&rec.UUID, &rec.JSON, &ts); err != nil {
+		return nil, err
+	}
+	rec.CreatedAt = time.Unix(ts, 0)
+	return &rec, nil
+}
+
+func (r *paipuRepo) List(ctx context.Context, limit int) ([]paipu.Record, error) {
+	rows, err := r.db.QueryContext(ctx, `SELECT uuid, json, created_at FROM paipu ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []paipu.Record
+	for rows.Next() {
+		var rec paipu.Record
+		var ts int64
+		if err := rows.Scan(&rec.UUID, &rec.JSON, &ts); err != nil {
+			return nil, err
+		}
+		rec.CreatedAt = time.Unix(ts, 0)
+		out = append(out, rec)
+	}
+	return out, rows.Err()
 }
