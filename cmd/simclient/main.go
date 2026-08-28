@@ -128,6 +128,10 @@ func main() {
 		{".lq.Lobby.fetchRollingNotice", "lq.ResFetchRollingNotice"},
 		{".lq.Lobby.fetchAchievement", "lq.ResAchievement"},
 	}
+
+	// Character lottery: paid draw, expect a char id back.
+	send(".lq.Lobby.openGacha", "lq.ReqOpenGacha", map[string]any{"activityId": 1, "count": 1})
+	recv("lq.ResOpenGacha")
 	for _, step := range seq {
 		send(step[0], "", nil)
 		recv(step[1])

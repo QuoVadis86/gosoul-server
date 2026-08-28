@@ -9,10 +9,12 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math/rand"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/qy-info/gosoul/internal/gacha"
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
@@ -68,6 +70,7 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyFetchCommentSetting, h.fetchCommentSetting)
 	r.Handle(protocol.MethodLobbyFetchAchievementRate, h.fetchAchievementRate)
 	r.Handle(protocol.MethodLobbyFetchAchievement, h.fetchAchievement)
+	r.Handle(protocol.MethodLobbyOpenGacha, h.openGacha)
 	r.Handle(protocol.MethodLobbyFetchRollingNotice, h.fetchRollingNotice)
 	r.Handle(protocol.MethodLobbyFetchActivity, h.fetchActivity)
 
@@ -90,6 +93,35 @@ type handler struct {
 	log      *slog.Logger
 	rooms    *room.Service
 	gameAddr string
+	gacha    *gacha.Service
+}
+
+// ensureGacha lazily builds the character lottery over the user service.
+func (h *handler) ensureGacha() *gacha.Service {
+	if h.gacha == nil {
+		rng := rand.New(rand.NewSource(time.Now().UnixNano()))
+		h.gacha = gacha.New(userGacha{h.user}, gacha.Pool{
+			Characters: []int64{200001, 200002, 200003, 200101, 200102},
+		}, rng)
+	}
+	return h.gacha
+}
+
+// userGacha adapts the user domain to the gacha drawer contract.
+type userGacha struct{ svc *user.Service }
+
+func (g userGacha) Balance(ctx context.Context, id int64) (int64, error) {
+	w, err := g.svc.Balance(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	return w.Diamond, nil
+}
+func (g userGacha) Charge(ctx context.Context, id, delta int64) error {
+	return g.svc.Grant(ctx, id, 0, delta, 0)
+}
+func (g userGacha) GrantCharacter(ctx context.Context, id, charID int64) error {
+	return g.svc.GrantCharacter(ctx, id, charID)
 }
 
 func (h *handler) requestConnection(ctx *router.Context) error {
@@ -352,6 +384,28 @@ func (h *handler) fetchAchievement(ctx *router.Context) error {
 		})
 	}
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResAchievement, res)
+}
+
+// openGacha performs a paid character lottery draw.
+func (h *handler) openGacha(ctx *router.Context) error {
+	var req struct {
+		Count uint32 `json:"count"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqOpenGacha", ctx.Payload, &req); err != nil {
+		return err
+	}
+	res, err := h.ensureGacha().Open(context.Background(), ctx.Session.AccountID(), req.Count)
+	if errors.Is(err, gacha.ErrNotEnough) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOpenGacha, &resOpenGacha{Error: errorCode(4001)})
+	}
+	if err != nil {
+		return err
+	}
+	out := &resOpenGacha{Error: &errBody{}}
+	for _, id := range res.ResultList {
+		out.ResultList = append(out.ResultList, uint32(id))
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOpenGacha, out)
 }
 
 func (h *handler) fetchRollingNotice(ctx *router.Context) error {

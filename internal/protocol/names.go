@@ -47,6 +47,7 @@ const (
 	MethodLobbyFetchCommentSetting  = ".lq.Lobby.fetchCommentSetting"
 	MethodLobbyFetchAchievementRate = ".lq.Lobby.fetchAchievementRate"
 	MethodLobbyFetchAchievement     = ".lq.Lobby.fetchAchievement"
+	MethodLobbyOpenGacha            = ".lq.Lobby.openGacha"
 	MethodLobbyFetchRollingNotice   = ".lq.Lobby.fetchRollingNotice"
 	MethodLobbyFetchActivity        = ".lq.Lobby.fetchActivity"
 
@@ -118,6 +119,7 @@ const (
 	TypeResCommentSetting       = "lq.ResCommentSetting"
 	TypeResFetchAchievementRate = "lq.ResFetchAchievementRate"
 	TypeResAchievement          = "lq.ResAchievement"
+	TypeResOpenGacha            = "lq.ResOpenGacha"
 	TypeResFetchRollingNotice   = "lq.ResFetchRollingNotice"
 	TypeResActivityList         = "lq.ResActivityList"
 	TypeResFetchChallengeTop    = "lq.ResFetchChallengeTop"

@@ -93,6 +93,14 @@ type resAchievement struct {
 	RewardedGroup []uint32              `json:"rewardedGroup"`
 }
 
+// resOpenGacha answers .lq.Lobby.openGacha.
+type resOpenGacha struct {
+	Error         *errBody `json:"error"`
+	ResultList    []uint32 `json:"resultList"`
+	SpRewardItems []uint32 `json:"spRewardItems"`
+	RemainCount   uint32   `json:"remainCount"`
+}
+
 // resFetchRollingNotice answers .lq.Lobby.fetchRollingNotice.
 type resFetchRollingNotice struct {
 	Error *errBody `json:"error"`
