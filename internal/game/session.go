@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/qy-info/gosoul/internal/paipu"
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/router"
 )
@@ -19,13 +20,14 @@ type session struct {
 	StartedAt time.Time
 	round     *roundState
 	drv       *drive
+	paipu     *paipu.Service
 	kyoku     int
 	honba     int
 }
 
 // Handlers registers the FastTest surface on r.
-func Handlers(r *router.Router, log *slog.Logger) {
-	h := &handlers{log: log, sessions: make(map[router.Session]*session)}
+func Handlers(r *router.Router, log *slog.Logger, pp *paipu.Service) {
+	h := &handlers{log: log, sessions: make(map[router.Session]*session), paipu: pp}
 	r.Handle(protocol.MethodFastTestAuthGame, h.authGame)
 	r.Handle(protocol.MethodFastTestEnterGame, h.enterGame)
 	r.Handle(protocol.MethodFastTestSyncGame, h.syncGame)
@@ -40,6 +42,7 @@ func Handlers(r *router.Router, log *slog.Logger) {
 type handlers struct {
 	log      *slog.Logger
 	sessions map[router.Session]*session
+	paipu    *paipu.Service
 }
 
 func (h *handlers) ok(ctx *router.Context) error {

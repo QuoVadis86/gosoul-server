@@ -106,6 +106,21 @@ func (r *Round) MaxDora() int { return 5 }
 // LeftWall reports how many live tiles remain in the draw stack.
 func (r *Round) LeftWall() int { return len(r.leftWall) }
 
+// End marks the round resolved: winner is the winning seat or -1 for ryukyoku.
+// It freezes the phase so no further play is accepted.
+func (r *Round) End(winner int) {
+	r.Winner = winner
+	r.phase = PhaseEnded
+}
+
+// Current returns the active seat, or -1 after the round ends.
+func (r *Round) Current() int {
+	if r.phase == PhaseEnded {
+		return -1
+	}
+	return r.current
+}
+
 // Start deals the initial 14th tile to the dealer, sets the first draw, and
 // moves into the picking phase.
 func (r *Round) Start(ctx context.Context) (Tile, error) {

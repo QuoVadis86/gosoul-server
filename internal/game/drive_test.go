@@ -7,6 +7,8 @@ import (
 
 	"github.com/qy-info/gosoul/internal/game/ai"
 	"github.com/qy-info/gosoul/internal/game/engine"
+	"github.com/qy-info/gosoul/internal/paipu"
+	"github.com/qy-info/gosoul/internal/storage"
 )
 
 // fakeSess records actions pushed through ActionNotify.
@@ -139,4 +141,53 @@ func TestDriveHumanInputRequired(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("round failed after input: %v", err)
 	}
+}
+
+func TestArchiveWritesPaipu(t *testing.T) {
+	fake := &fakeSess{}
+	store, err := newTempStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	s := &session{
+		Seat:     0,
+		GameUUID: "g-archive-1",
+		round:    &roundState{},
+		paipu:    paipu.New(store.Paipu),
+	}
+	wall := &engine.Wall{
+		Hands:       make([][]engine.Tile, 4),
+		DeadWall:    []engine.Tile{"1m", "2m", "3z", "4z", "5z", "6z", "7z", "1p", "2p", "3p", "4p", "5p", "6p", "7p"},
+		Wall:        []engine.Tile{},
+		DealerExtra: "5z",
+	}
+	for i := range wall.Hands {
+		wall.Hands[i] = []engine.Tile{"1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "1p", "1s", "1z", "2z"}
+	}
+	for i := 0; i < 20; i++ {
+		wall.Wall = append(wall.Wall, []engine.Tile{"1m", "2m", "3p", "4s", "5z"}...)
+	}
+	d := &fixedBot{tile: ""}
+	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, wall, d)
+	s.round.round = r
+	s.round.drv = newDrive(fake, nil, func(int) ai.Player { return d })
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.runRound(context.Background()); err != nil {
+		t.Fatalf("runRound: %v", err)
+	}
+	rec, err := s.paipu.Get(context.Background(), "g-archive-1")
+	if err != nil {
+		t.Fatalf("paipu get: %v", err)
+	}
+	if rec.JSON == "" || rec.UUID != "g-archive-1" {
+		t.Fatalf("bad paipu: %+v", rec)
+	}
+}
+
+func newTempStore(t *testing.T) (*storage.Store, error) {
+	t.Helper()
+	return storage.Open(t.TempDir() + "/db.sqlite")
 }

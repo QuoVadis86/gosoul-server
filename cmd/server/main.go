@@ -14,6 +14,7 @@ import (
 	"github.com/qy-info/gosoul/internal/game"
 	"github.com/qy-info/gosoul/internal/gateway"
 	"github.com/qy-info/gosoul/internal/lobby"
+	"github.com/qy-info/gosoul/internal/paipu"
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/room"
 	"github.com/qy-info/gosoul/internal/router"
@@ -64,7 +65,8 @@ func main() {
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
 	gameRouter := router.New(reg)
-	game.Handlers(gameRouter, log)
+	ppSvc := paipu.New(store.Paipu)
+	game.Handlers(gameRouter, log, ppSvc)
 	gameSrv := transport.New(gameRouter, reg, log)
 	gameHTTP := &http.Server{Addr: cfg.Game.Addr(), Handler: http.HandlerFunc(gameSrv.HandleHTTP)}
 

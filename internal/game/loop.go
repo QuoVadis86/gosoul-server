@@ -2,6 +2,7 @@ package game
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/qy-info/gosoul/internal/game/engine"
 )
@@ -12,7 +13,33 @@ import (
 func (s *session) runRound(ctx context.Context) error {
 	r := s.round.round
 	step := uint32(1)
-	return s.playTurns(ctx, r, step, s.Seat)
+	err := s.playTurns(ctx, r, step, s.Seat)
+	// Normal ends still get a paipu entry; errors (disconnects) do not.
+	if err != nil {
+		return err
+	}
+	return s.archive(ctx, r)
+}
+
+// archive persists the finished round as a paipu record when a store is wired.
+func (s *session) archive(ctx context.Context, r *engine.Round) error {
+	if s.paipu == nil {
+		return nil
+	}
+	payload := roundSnapshot{r.Winner, r.Scores, r.Kyoku, r.Honba}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+	return s.paipu.Save(ctx, s.GameUUID, string(b))
+}
+
+// roundSnapshot is the persisted shape of one finished round.
+type roundSnapshot struct {
+	Winner int
+	Scores []int
+	Kyoku  int
+	Honba  int
 }
 
 // playTurns repeatedly: current seat draws (or continues), decides to discard,
@@ -39,6 +66,7 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 		}
 		// Consult wins before applying the discard (tsumo on the drawn tile).
 		if w := engine.CheckWin(seat, r.ViewFor(seat).Hand, r.Players[seat].Melds, true, -1); w != nil {
+			r.End(w.Seat)
 			if err := s.round.drv.Tsumo(ctx, w, step); err != nil {
 				return err
 			}
@@ -53,6 +81,7 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 		step++
 		seat = (seat + 1) % r.Meta.NumPlayers
 	}
+	r.End(-1)
 	return s.round.drv.LiuJu(ctx, step)
 }
 
