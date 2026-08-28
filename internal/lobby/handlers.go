@@ -282,7 +282,8 @@ func (h *handler) oauth2Auth(ctx *router.Context) error {
 	})
 }
 
-// oauth2Signup 在 oauth2Check(false) 后由客户端调用：注册并签发 token。
+// oauth2Signup 在 oauth2Check(false) 后由客户端调用：以客户端本地持久 token
+// 作为账号键注册（幂等），使游客身份跨会话稳定。
 func (h *handler) oauth2Signup(ctx *router.Context) error {
 	var req struct {
 		Type        uint32 `json:"type"`
@@ -292,14 +293,15 @@ func (h *handler) oauth2Signup(ctx *router.Context) error {
 	if err := ctx.Reg.DecodeInto("lq.ReqOauth2Signup", ctx.Payload, &req); err != nil {
 		return err
 	}
-	name := req.Email
-	if name == "" {
-		name = fmt.Sprintf("oauth_%d", time.Now().Unix())
+	key := req.AccessToken
+	if key == "" {
+		key = req.Email
 	}
-	acc, err := h.user.Signup(context.Background(), name, "", "")
-	if errors.Is(err, user.ErrTaken) {
-		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Signup, &resOauth2Signup{Error: errorCode(2001)})
+	if key == "" {
+		key = fmt.Sprintf("oauth_%d", time.Now().Unix())
 	}
+	// 复用 token 建号路径：tokenKey(key) 作 username，同 key 幂等。
+	acc, err := h.user.SignupByToken(context.Background(), tokenKey(key))
 	if err != nil {
 		return err
 	}
