@@ -15,6 +15,9 @@ import (
 // ErrTaken is returned when a signup collides with an existing username.
 var ErrTaken = errors.New("user: username taken")
 
+// ErrBadPassword is returned when a login supplies the wrong password.
+var ErrBadPassword = errors.New("user: bad password")
+
 // DefaultAllowance seeds new accounts on their first login.
 var DefaultAllowance = struct{ Gold, Diamond, SkinTicket int64 }{100000, 1000, 100}
 
@@ -59,32 +62,49 @@ func (s *Service) Signup(ctx context.Context, username, password, nickname strin
 	if err := s.accounts.Create(ctx, acc); err != nil {
 		return nil, err
 	}
+	// Registration carries an initial wallet.
+	_ = s.wallets.AddGold(ctx, acc.ID, DefaultAllowance.Gold)
+	_ = s.wallets.AddDiamond(ctx, acc.ID, DefaultAllowance.Diamond)
+	_ = s.wallets.AddSkinTicket(ctx, acc.ID, DefaultAllowance.SkinTicket)
 	return acc, nil
 }
 
-// Login authenticates a known account and auto-registers unknown usernames so
-// the client never dead-ends. It seeds the wallet on first visit and stamps
-// the last-login time.
+// Login authenticates a known account. Unknown usernames and wrong passwords
+// are real errors — registration is an explicit signup, matching the official
+// client flow.
 func (s *Service) Login(ctx context.Context, username, password string) (*Account, error) {
 	acc, err := s.accounts.GetByUsername(ctx, username)
-	if errors.Is(err, ErrNotFound) {
-		acc, err = s.Signup(ctx, username, password, "")
-		if err != nil {
-			return nil, err
-		}
-	} else if err != nil {
+	if err != nil {
 		return nil, err
-	} else if acc.PasswordHash != "" {
+	}
+	if acc.PasswordHash != "" {
 		if err := bcrypt.CompareHashAndPassword([]byte(acc.PasswordHash), []byte(password)); err != nil {
-			return nil, err
+			return nil, ErrBadPassword
 		}
 	}
+	_ = s.accounts.UpdateLogin(ctx, acc.ID, time.Now().Unix())
+	return acc, nil
+}
 
-	if err := s.ensureWallet(ctx, acc.ID); err != nil {
-		// a missing wallet is seeded; other errors surface
-		if !errors.Is(err, ErrNotFound) {
-			return nil, err
-		}
+// SignupByToken creates (or reuses) an account keyed by a visitor token. The
+// token is stored as the username, mirroring how the official client treats
+// locally-generated visitor identifiers as real accounts.
+func (s *Service) SignupByToken(ctx context.Context, tokenKey string) (*Account, error) {
+	existing, err := s.accounts.GetByUsername(ctx, tokenKey)
+	if err == nil && existing != nil {
+		return existing, nil
+	}
+	if err != nil && !errors.Is(err, ErrNotFound) {
+		return nil, err
+	}
+	return s.Signup(ctx, tokenKey, "", "visitor")
+}
+
+// LoginByToken authenticates a visitor token (account keyed by that token).
+func (s *Service) LoginByToken(ctx context.Context, tokenKey string) (*Account, error) {
+	acc, err := s.accounts.GetByUsername(ctx, tokenKey)
+	if err != nil {
+		return nil, err
 	}
 	_ = s.accounts.UpdateLogin(ctx, acc.ID, time.Now().Unix())
 	return acc, nil
@@ -161,10 +181,7 @@ func (s *Service) Home(ctx context.Context, accountID int64) (*Home, error) {
 	return &Home{Account: acc, Wallet: wallet, Characters: chars}, nil
 }
 
-func (s *Service) ensureWallet(ctx context.Context, accountID int64) error {
-	_, err := s.wallets.Get(ctx, accountID)
-	if errors.Is(err, ErrNotFound) {
-		return s.wallets.AddGold(ctx, accountID, DefaultAllowance.Gold)
-	}
-	return err
+// GetByUsernameToken exposes existence lookup by the token-keyed username.
+func (s *Service) GetByUsernameToken(ctx context.Context, tokenKey string) (*Account, error) {
+	return s.accounts.GetByUsername(ctx, tokenKey)
 }

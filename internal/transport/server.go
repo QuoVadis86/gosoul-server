@@ -3,6 +3,7 @@
 package transport
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"sync"
@@ -72,6 +73,11 @@ func (s *Server) serve(sess *Session) {
 		if err != nil {
 			s.log.Error("read loop exit", "err", err)
 			return
+		}
+		if f, ferr := protocol.DecodeFrame(data); ferr == nil {
+			s.log.Info("frame in", "type", f.Type, "name", f.Name, "len", len(data))
+		} else {
+			s.log.Error("frame decode", "err", ferr, "hex", fmt.Sprintf("%x", data))
 		}
 		sess.handleFrame(data)
 	}

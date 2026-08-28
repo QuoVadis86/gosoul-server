@@ -18,6 +18,7 @@ const (
 	MethodRouteHeartbeat         = ".lq.Route.heartbeat"
 
 	MethodLobbyPrepareLogin        = ".lq.Lobby.prepareLogin"
+	MethodLobbySignup              = ".lq.Lobby.signup"
 	MethodLobbyLogin               = ".lq.Lobby.login"
 	MethodLobbyEmailLogin          = ".lq.Lobby.emailLogin"
 	MethodLobbyFastLogin           = ".lq.Lobby.fastLogin"
@@ -67,6 +68,11 @@ const (
 	TypeResFetchInfo         = "lq.ResFetchInfo"
 	TypeResFetchLastPrivacy  = "lq.ResFetchLastPrivacy"
 	TypeResConnectionInfo    = "lq.ResConnectionInfo"
+
+	TypeReqSignupAccount = "lq.ReqSignupAccount"
+	TypeResSignupAccount = "lq.ResSignupAccount"
+	TypeResOauth2Signup  = "lq.ResOauth2Signup"
+	TypeResFastLogin     = "lq.ResFastLogin"
 )
 
 // ── Notify 名 ─────────────────────────────────────────────────────────

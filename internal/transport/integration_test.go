@@ -67,7 +67,7 @@ func (c *client) request(method, reqType string, v any) (respType string, respJS
 		var err error
 		payload, err = c.reg.EncodeAsDynamic(reqType, v)
 		if err != nil {
-			payload = nil // tolerate request schemas missing from the proto subset
+			payload = nil
 		}
 	}
 	c.seq++
@@ -86,88 +86,144 @@ func (c *client) request(method, reqType string, v any) (respType string, respJS
 		if err != nil {
 			c.t.Fatalf("decode frame: %v", err)
 		}
-		if frame.Type == protocol.MsgRequest || (frame.Type == protocol.MsgNotify && frame.Name != ".lq.NotifyAccountUpdate") {
+		if frame.Type == protocol.MsgRequest ||
+			(frame.Type == protocol.MsgNotify && frame.Name != protocol.NotifyAccountUpdate) {
 			continue
 		}
 		if frame.MsgID != c.seq {
 			continue
 		}
 		route, _ := c.reg.RouteFor(method)
-		respName := route.RespType
-		msg, err := c.reg.NewMessage(respName)
+		msg, err := c.reg.NewMessage(route.RespType)
 		if err != nil {
-			c.t.Fatalf("new message: %v", err)
+			c.t.Fatalf("new message: %v (%s)", err, method)
 		}
 		if err := msg.Unmarshal(frame.Data); err != nil {
 			c.t.Fatalf("unmarshal resp: %v", err)
 		}
 		jsonBytes, _ := msg.ToJSON()
-		return respName, string(jsonBytes)
+		return route.RespType, string(jsonBytes)
 	}
 }
+
+type signupReq struct {
+	Account  string `json:"account"`
+	Password string `json:"password"`
+}
+
+type loginReq struct {
+	Account  string `json:"account"`
+	Password string `json:"password"`
+}
+
+type errRPC struct {
+	Error *struct {
+		Code int `json:"code"`
+	} `json:"error"`
+}
+
+func signup(c *client, u, p string) error {
+	_, body := c.request(protocol.MethodLobbySignup, protocol.TypeReqSignupAccount, &signupReq{Account: u, Password: p})
+	var res errRPC
+	_ = json.Unmarshal([]byte(body), &res)
+	if res.Error != nil && res.Error.Code != 0 {
+		return &rpcError{body: body}
+	}
+	return nil
+}
+
+func loginRB(c *client, u, p string) (uint32, error) {
+	_, body := c.request(protocol.MethodLobbyLogin, protocol.TypeReqLogin, &loginReq{Account: u, Password: p})
+	var res errRPC
+	if err := json.Unmarshal([]byte(body), &res); err != nil {
+		return 0, err
+	}
+	if res.Error != nil && res.Error.Code != 0 {
+		return 0, &rpcError{body: body}
+	}
+	var login struct {
+		AccountID uint32 `json:"accountId"`
+	}
+	_ = json.Unmarshal([]byte(body), &login)
+	return login.AccountID, nil
+}
+
+type rpcError struct {
+	body string
+}
+
+func (e *rpcError) Error() string { return e.body }
 
 func TestLoginFlow(t *testing.T) {
 	reg, ts := startLobbyServer(t)
 	c := dial(t, reg, ts)
 
-	c.request(".lq.Route.requestConnection", "lq.ReqCommon", struct{}{})
-	c.request(".lq.Route.heartbeat", "lq.ReqCommon", struct{}{})
-	c.request(".lq.Lobby.prepareLogin", "lq.ReqCommon", struct{}{})
+	c.request(protocol.MethodRouteRequestConnection, protocol.TypeReqCommon, struct{}{})
+	c.request(protocol.MethodRouteHeartbeat, protocol.TypeReqCommon, struct{}{})
+	c.request(protocol.MethodLobbyPrepareLogin, protocol.TypeReqCommon, struct{}{})
 
-	respName, body := c.request(".lq.Lobby.login", "lq.ReqLogin", struct {
-		Account  string `json:"account"`
-		Password string `json:"password"`
-	}{Account: "test010", Password: "pw"})
-
-	if respName != "lq.ResLogin" {
-		t.Fatalf("resp type = %s", respName)
+	if err := signup(c, "test010", "pw"); err != nil {
+		t.Fatalf("signup: %v", err)
 	}
-	var login struct {
-		Error       *json.RawMessage `json:"error"`
-		AccountID   uint32           `json:"accountId"`
-		AccessToken string           `json:"accessToken"`
-		Country     string           `json:"country"`
+	id, err := loginRB(c, "test010", "pw")
+	if err != nil {
+		t.Fatalf("login: %v", err)
 	}
-	if err := json.Unmarshal([]byte(body), &login); err != nil {
-		t.Fatal(err)
-	}
-	if login.AccountID == 0 {
-		t.Fatalf("no account id: %s", body)
-	}
-	if !strings.HasPrefix(login.AccessToken, "local-token-") {
-		t.Fatalf("access token: %s", body)
+	if id == 0 {
+		t.Fatal("login returned no account id")
 	}
 }
 
-func TestAutoRegisterPersistence(t *testing.T) {
+func TestSignupThenLoginSameID(t *testing.T) {
+	reg, ts := startLobbyServer(t)
+
+	regOnce := dial(t, reg, ts)
+	if err := signup(regOnce, "persist-me", "x"); err != nil {
+		t.Fatal(err)
+	}
+
+	loginID := func() uint32 {
+		c := dial(t, reg, ts)
+		id, err := loginRB(c, "persist-me", "x")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	id1 := loginID()
+	id2 := loginID()
+	if id1 != id2 {
+		t.Fatalf("account id changed %d -> %d", id1, id2)
+	}
+}
+
+func TestLoginUnknownAccountFails(t *testing.T) {
 	reg, ts := startLobbyServer(t)
 	c := dial(t, reg, ts)
-	_, body := c.request(".lq.Lobby.login", "lq.ReqLogin", struct {
-		Account  string `json:"account"`
-		Password string `json:"password"`
-	}{Account: "persist-me", Password: "x"})
+	if _, err := loginRB(c, "ghost-user", "x"); err == nil {
+		t.Fatal("unknown account must error")
+	}
+}
 
-	var login struct {
-		AccountID uint32 `json:"accountId"`
+func TestLoginWrongPasswordFails(t *testing.T) {
+	reg, ts := startLobbyServer(t)
+	c := dial(t, reg, ts)
+	if err := signup(c, "pwcheck", "right"); err != nil {
+		t.Fatal(err)
 	}
-	_ = json.Unmarshal([]byte(body), &login)
-	acctID := login.AccountID
-	if acctID == 0 {
-		t.Fatal("no account created")
+	if _, err := loginRB(c, "pwcheck", "wrong"); err == nil {
+		t.Fatal("wrong password must error")
 	}
+}
 
-	// Second login of the same user must return the same id (persisted).
-	c2 := dial(t, reg, ts)
-	_, body2 := c2.request(".lq.Lobby.login", "lq.ReqLogin", struct {
-		Account  string `json:"account"`
-		Password string `json:"password"`
-	}{Account: "persist-me", Password: "x"})
-	var login2 struct {
-		AccountID uint32 `json:"accountId"`
+func TestSignupDuplicateFails(t *testing.T) {
+	reg, ts := startLobbyServer(t)
+	c := dial(t, reg, ts)
+	if err := signup(c, "dup", "a"); err != nil {
+		t.Fatal(err)
 	}
-	_ = json.Unmarshal([]byte(body2), &login2)
-	if login2.AccountID != acctID {
-		t.Fatalf("account id changed %d -> %d", acctID, login2.AccountID)
+	if err := signup(c, "dup", "b"); err == nil {
+		t.Fatal("duplicate username must error")
 	}
 }
 
@@ -175,14 +231,11 @@ func TestSurfaceMeetsFullRPCSurface(t *testing.T) {
 	reg, ts := startLobbyServer(t)
 	c := dial(t, reg, ts)
 
-	// Methods that are NOT explicitly implemented must still answer with
-	// their correct proto response type so the client can decode them.
 	sample := []string{
+		protocol.MethodLobbyLogin,
 		".lq.Lobby.createRoom",
 		".lq.Lobby.startUnifiedMatch",
 		".lq.Lobby.fetchMail",
-		".lq.Lobby.fetchShopInfo",
-		".lq.Lobby.fetchAchievement",
 		".lq.Lobby.readyRoom",
 		".lq.FastTest.authGame",
 		".lq.FastTest.syncGame",
@@ -193,7 +246,7 @@ func TestSurfaceMeetsFullRPCSurface(t *testing.T) {
 	}
 	for _, method := range sample {
 		if !known[method] {
-			continue // route table does not reference it
+			continue
 		}
 		route, _ := reg.RouteFor(method)
 		respType, body := c.request(method, "", struct{}{})

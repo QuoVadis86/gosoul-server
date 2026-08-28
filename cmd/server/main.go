@@ -68,10 +68,13 @@ func main() {
 	adm := admin.New(log, svc)
 	adminSrv := &http.Server{Addr: cfg.Admin.Listen, Handler: adm.Handler()}
 
-	errCh := make(chan error, 2)
+	errCh := make(chan error, 3)
 	go func() { errCh <- gw.ListenAndServe(cfg.Gateway.Listen) }()
 	go func() { errCh <- adminSrv.ListenAndServe() }()
 	go func() { errCh <- lobbyHTTP.ListenAndServe() }()
+	if httpsAddr := os.Getenv("GOSOUL_HTTPS_ADDR"); httpsAddr != "" {
+		go func() { errCh <- gw.ListenAndServeTLS(httpsAddr) }()
+	}
 
 	slog.Info("gosoul starting",
 		"gateway", cfg.Gateway.Listen,

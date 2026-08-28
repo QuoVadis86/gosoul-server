@@ -14,6 +14,22 @@ func accessToken(accountID int64) string { return fmt.Sprintf("local-token-%d", 
 // empty is the generic success envelope.
 type empty struct{}
 
+// errorCode is the shared way to answer with a non-zero error code.
+func errorCode(code uint32) *errBody {
+	return &errBody{Code: code}
+}
+
+// resSignupAccount answers .lq.Lobby.signup.
+type resSignupAccount struct {
+	Error *errBody `json:"error"`
+}
+
+// resOauth2Signup answers .lq.Lobby.oauth2Signup with the new token.
+type resOauth2Signup struct {
+	Error       *errBody `json:"error"`
+	AccessToken string   `json:"accessToken"`
+}
+
 // ResRequestConnection: result/timestamp.
 type resRequestConnection struct {
 	Error     *errBody `json:"error"`
@@ -25,7 +41,9 @@ type resHeartbeat struct {
 	Error *errBody `json:"error"`
 }
 
-type errBody struct{}
+type errBody struct {
+	Code uint32 `json:"code"`
+}
 
 type resOauth2Auth struct {
 	Error       *errBody `json:"error"`
@@ -56,19 +74,36 @@ type resConnectionInfo struct {
 	} `json:"clientEndpoint"`
 }
 
+// levelRPC is the level projection (id + score) used inside Account.
+type levelRPC struct {
+	ID    uint32 `json:"id"`
+	Score uint32 `json:"score"`
+}
+
 // accountRPC is the nested Account projection the client renders.
 type accountRPC struct {
-	AccountID  uint32 `json:"accountId"`
-	Nickname   string `json:"nickname"`
-	AvatarID   uint32 `json:"avatarId"`
-	Gold       uint32 `json:"gold"`
-	Diamond    uint32 `json:"diamond"`
-	SkinTicket uint32 `json:"skinTicket"`
-	VIP        uint32 `json:"vip"`
-	Title      uint32 `json:"title"`
-	Signature  string `json:"signature"`
-	Verified   uint32 `json:"verified"`
-	Email      string `json:"email"`
+	AccountID     uint32    `json:"accountId"`
+	Nickname      string    `json:"nickname"`
+	AvatarID      uint32    `json:"avatarId"`
+	Level         *levelRPC `json:"level"`
+	Level3        *levelRPC `json:"level3"`
+	VIP           uint32    `json:"vip"`
+	Title         uint32    `json:"title"`
+	LoginTime     uint32    `json:"loginTime"`
+	LogoutTime    uint32    `json:"logoutTime"`
+	RoomID        uint32    `json:"roomId"`
+	AntiAddiction struct {
+		OnlineDuration uint32 `json:"onlineDuration"`
+	} `json:"antiAddiction"`
+	Email       string `json:"email"`
+	PhoneVerify uint32 `json:"phoneVerify"`
+	EmailVerify uint32 `json:"emailVerify"`
+	AvatarFrame uint32 `json:"avatarFrame"`
+	Gold        uint32 `json:"gold"`
+	Diamond     uint32 `json:"diamond"`
+	SkinTicket  uint32 `json:"skinTicket"`
+	Signature   string `json:"signature"`
+	Verified    uint32 `json:"verified"`
 }
 
 // resLogin answers .lq.Lobby.login / oauth2Login / fastLogin / emailLogin.
@@ -174,17 +209,23 @@ type numEntry struct {
 // accountRPC projects an account for client rendering.
 func (h *handler) accountRPC(home *user.Home) *accountRPC {
 	return &accountRPC{
-		AccountID:  uint32(home.Account.ID),
-		Nickname:   home.Account.Nickname,
-		AvatarID:   uint32(home.Account.AvatarID),
-		Gold:       uint32(home.Wallet.Gold),
-		Diamond:    uint32(home.Wallet.Diamond),
-		SkinTicket: uint32(home.Wallet.SkinTicket),
-		VIP:        uint32(home.Account.VIP),
-		Title:      uint32(home.Account.Title),
-		Signature:  home.Account.Signature,
-		Verified:   uint32(home.Account.Verified),
-		Email:      home.Account.Username,
+		AccountID: uint32(home.Account.ID),
+		Nickname:  home.Account.Nickname,
+		AvatarID:  uint32(home.Account.AvatarID),
+		Level:     &levelRPC{ID: uint32(home.Account.LevelID), Score: uint32(home.Account.LevelScore)},
+		Level3:    &levelRPC{ID: 1001, Score: 0},
+		VIP:       uint32(home.Account.VIP),
+		Title:     uint32(home.Account.Title),
+		AntiAddiction: struct {
+			OnlineDuration uint32 `json:"onlineDuration"`
+		}{},
+		Email:       home.Account.Username,
+		AvatarFrame: 0,
+		Gold:        uint32(home.Wallet.Gold),
+		Diamond:     uint32(home.Wallet.Diamond),
+		SkinTicket:  uint32(home.Wallet.SkinTicket),
+		Signature:   home.Account.Signature,
+		Verified:    uint32(home.Account.Verified),
 	}
 }
 

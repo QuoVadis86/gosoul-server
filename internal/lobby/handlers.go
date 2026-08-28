@@ -5,12 +5,31 @@ package lobby
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
+	"strconv"
+	"strings"
+	"time"
 
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/user"
 )
+
+func tokenKey(token string) string { return "t:" + token }
+
+// usernameFromToken extracts the account id from a local-token-N.
+func usernameFromToken(token string) int64 {
+	if len(token) < 12 || token[:12] != "local-token-" {
+		return 0
+	}
+	id, err := strconv.ParseInt(token[12:], 10, 64)
+	if err != nil {
+		return 0
+	}
+	return id
+}
 
 // Handlers registers every lobby RPC the client uses at login.
 func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry) {
@@ -19,13 +38,14 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodRouteRequestConnection, h.requestConnection)
 	r.Handle(protocol.MethodRouteHeartbeat, h.heartbeat)
 	r.Handle(protocol.MethodLobbyPrepareLogin, h.ok)
+	r.Handle(protocol.MethodLobbySignup, h.signup)
 	r.Handle(protocol.MethodLobbyLogin, h.login)
 	r.Handle(protocol.MethodLobbyEmailLogin, h.login)
 	r.Handle(protocol.MethodLobbyFastLogin, h.login)
 	r.Handle(protocol.MethodLobbyOauth2Login, h.login)
 	r.Handle(protocol.MethodLobbyOauth2Auth, h.oauth2Auth)
 	r.Handle(protocol.MethodLobbyOauth2Check, h.oauth2Check)
-	r.Handle(protocol.MethodLobbyOauth2Signup, h.ok)
+	r.Handle(protocol.MethodLobbyOauth2Signup, h.oauth2Signup)
 	r.Handle(protocol.MethodLobbyOpenidCheck, h.oauth2Check)
 	r.Handle(protocol.MethodLobbyLoginSuccess, h.loginSuccess)
 	r.Handle(protocol.MethodLobbyLoginBeat, h.ok)
@@ -55,6 +75,26 @@ func (h *handler) heartbeat(ctx *router.Context) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResHeartbeat, &resHeartbeat{})
 }
 
+// signup 注册新账号；重名返回错误。
+func (h *handler) signup(ctx *router.Context) error {
+	var req struct {
+		Account  string `json:"account"`
+		Password string `json:"password"`
+	}
+	if err := ctx.Reg.DecodeInto(protocol.TypeReqSignupAccount, ctx.Payload, &req); err != nil {
+		return err
+	}
+	if req.Account == "" {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResSignupAccount, &resSignupAccount{Error: errorCode(2001)})
+	}
+	if _, err := h.user.Signup(context.Background(), req.Account, req.Password, ""); errors.Is(err, user.ErrTaken) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResSignupAccount, &resSignupAccount{Error: errorCode(2001)})
+	} else if err != nil {
+		return err
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResSignupAccount, &resSignupAccount{Error: &errBody{}})
+}
+
 type reqLogin struct {
 	Account     string `json:"account"`
 	Password    string `json:"password"`
@@ -62,21 +102,44 @@ type reqLogin struct {
 	AccessToken string `json:"accessToken"`
 }
 
-// login authenticates (auto-registering unknown names) and returns ResLogin.
+// login 校验账号与密码；不存在或密码错都是真实错误（注册走 signup）。
 func (h *handler) login(ctx *router.Context) error {
 	var req reqLogin
 	if err := ctx.Reg.DecodeInto(requestType(ctx.Method), ctx.Payload, &req); err != nil {
 		return err
 	}
+	// token-based 登录（oauth2Login/fastLogin）：客户端游客 token / 旧 local-token-N
+	if token := req.AccessToken; token != "" {
+		acc, err := h.user.LoginByToken(context.Background(), tokenKey(token))
+		if errors.Is(err, user.ErrNotFound) && strings.HasPrefix(token, "local-token-") {
+			acc, err = h.user.Get(context.Background(), usernameFromToken(token))
+		}
+		if err != nil {
+			return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{Error: errorCode(2001)})
+		}
+		ctx.Session.SetAccountID(acc.ID)
+		home, err := h.user.Home(context.Background(), acc.ID)
+		if err != nil {
+			return err
+		}
+		return h.respondLogin(ctx, acc, home)
+	}
+
 	username := req.Account
 	if username == "" {
 		username = req.Email
 	}
 	if username == "" {
-		username = "default"
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{Error: errorCode(2001)})
 	}
 
 	acc, err := h.user.Login(context.Background(), username, req.Password)
+	if errors.Is(err, user.ErrNotFound) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{Error: errorCode(2001)})
+	}
+	if errors.Is(err, user.ErrBadPassword) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{Error: errorCode(2002)})
+	}
 	if err != nil {
 		h.log.Error("login failed", "user", username, "err", err)
 		return err
@@ -86,8 +149,12 @@ func (h *handler) login(ctx *router.Context) error {
 	if err != nil {
 		return err
 	}
+	return h.respondLogin(ctx, acc, home)
+}
 
+func (h *handler) respondLogin(ctx *router.Context, acc *user.Account, home *user.Home) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{
+		Error:                 &errBody{},
 		AccountID:             uint32(acc.ID),
 		Account:               h.accountRPC(home),
 		AccessToken:           accessToken(acc.ID),
@@ -99,18 +166,53 @@ func (h *handler) login(ctx *router.Context) error {
 }
 
 func (h *handler) oauth2Auth(ctx *router.Context) error {
-	acc, err := h.user.Get(context.Background(), 1)
+	// 真实第三方授权未接入；本地场景不签发 oauth token。
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Auth, &resOauth2Auth{
+		Error: errorCode(2000),
+	})
+}
+
+// oauth2Signup 在 oauth2Check(false) 后由客户端调用：注册并签发 token。
+func (h *handler) oauth2Signup(ctx *router.Context) error {
+	var req struct {
+		Type        uint32 `json:"type"`
+		Email       string `json:"email"`
+		AccessToken string `json:"accessToken"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqOauth2Signup", ctx.Payload, &req); err != nil {
+		return err
+	}
+	name := req.Email
+	if name == "" {
+		name = fmt.Sprintf("oauth_%d", time.Now().Unix())
+	}
+	acc, err := h.user.Signup(context.Background(), name, "", "")
+	if errors.Is(err, user.ErrTaken) {
+		return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Signup, &resOauth2Signup{Error: errorCode(2001)})
+	}
 	if err != nil {
 		return err
 	}
 	ctx.Session.SetAccountID(acc.ID)
-	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Auth, &resOauth2Auth{
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Signup, &resOauth2Signup{
 		AccessToken: accessToken(acc.ID),
 	})
 }
 
 func (h *handler) oauth2Check(ctx *router.Context) error {
-	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Check, &resOauth2Check{HasAccount: true})
+	var req struct {
+		Type        uint32 `json:"type"`
+		AccessToken string `json:"accessToken"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqOauth2Check", ctx.Payload, &req); err != nil {
+		return err
+	}
+	hasAccount := false
+	if req.AccessToken != "" {
+		_, err := h.user.GetByUsernameToken(context.Background(), tokenKey(req.AccessToken))
+		hasAccount = err == nil
+	}
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResOauth2Check, &resOauth2Check{HasAccount: hasAccount})
 }
 
 // loginSuccess finalises login and pushes initial account state.
