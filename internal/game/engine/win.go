@@ -21,7 +21,7 @@ type Win struct {
 // winning tile for ron, or 13 concealed tiles plus the drawn tile for tsumo.
 // melds lists that seat's called groups (nil for a closed hand). indicators
 // carries the live dora indicators; their dora value is added to the han.
-func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int, indicators []Tile) *Win {
+func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int, indicators []Tile, double bool) *Win {
 	ytiles := make([]yaku.T, 0, len(hand))
 	for _, t := range hand {
 		ytiles = append(ytiles, yaku.T(t))
@@ -50,6 +50,7 @@ func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int, indi
 		Menzen:    len(open) == 0,
 		SeatWind:  seat % 4,
 		RoundWind: 0,
+		Daburi:    double,
 	}
 	fr := yaku.Calc(res, ytiles, ctx)
 	doraN := yaku.CountDora(ytiles, doraInd)

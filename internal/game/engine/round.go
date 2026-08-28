@@ -54,6 +54,8 @@ type Round struct {
 	leftWall []Tile
 	current  int
 	phase    Phase
+	// doubleRiichi marks seats that declared daburi this round.
+	doubleRiichi []bool
 	// decisions is the per-turn driver supplied by the caller.
 	decisions DecisionDriver
 }
@@ -97,6 +99,7 @@ func NewRound(meta RoundMeta, w *Wall, d DecisionDriver) *Round {
 	}
 	r.leftWall = append([]Tile(nil), w.Wall...)
 	r.current = dealer
+	r.doubleRiichi = make([]bool, meta.NumPlayers)
 	return r
 }
 
@@ -197,7 +200,8 @@ func (r *Round) Discard(ctx context.Context, tile Tile) error {
 }
 
 // DeclareRiichi marks the current seat as riichi if it is closed and discards
-// the given tile, banking a stick.
+// the given tile, banking a stick. A declaration on the seat's very first
+// discard before any meld anywhere is a double riichi (daburi).
 func (r *Round) DeclareRiichi(ctx context.Context, tile Tile) error {
 	p := &r.Players[r.current]
 	if len(p.Melds) != 0 {
@@ -206,6 +210,9 @@ func (r *Round) DeclareRiichi(ctx context.Context, tile Tile) error {
 	if err := contains(p.Hand, tile); err != nil {
 		return err
 	}
+	if len(p.Discards) == 0 && !r.anyMeld() {
+		r.doubleRiichi[r.current] = true
+	}
 	p.Riichi = true
 	p.Hand = removeTile(p.Hand, tile)
 	p.Discards = append(p.Discards, tile)
@@ -213,6 +220,20 @@ func (r *Round) DeclareRiichi(ctx context.Context, tile Tile) error {
 	r.Scores[r.current] -= 1000
 	r.current = (r.current + 1) % r.Meta.NumPlayers
 	return nil
+}
+
+// IsDoubleRiichi reports whether the given seat declared daburi this round.
+func (r *Round) IsDoubleRiichi(seat int) bool {
+	return r.doubleRiichi[seat]
+}
+
+func (r *Round) anyMeld() bool {
+	for _, p := range r.Players {
+		if len(p.Melds) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ErrInvalidRiichi is raised when declaring riichi on an open hand.

@@ -71,7 +71,7 @@ func (s *session) playTurns(ctx context.Context, r *engine.Round, step uint32, f
 			return err
 		}
 		// Consult wins before applying the discard (tsumo on the drawn tile).
-		if w := engine.CheckWin(seat, r.ViewFor(seat).Hand, r.Players[seat].Melds, true, -1, r.Dora); w != nil {
+		if w := engine.CheckWin(seat, r.ViewFor(seat).Hand, r.Players[seat].Melds, true, -1, r.Dora, r.IsDoubleRiichi(seat)); w != nil {
 			r.End(w.Seat)
 			if err := s.round.drv.Tsumo(ctx, w, step); err != nil {
 				return err

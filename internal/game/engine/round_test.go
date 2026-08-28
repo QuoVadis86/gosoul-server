@@ -143,3 +143,33 @@ func TestRoundDefaults(t *testing.T) {
 		t.Fatalf("default score = %d, want 25000", r.Scores[0])
 	}
 }
+
+func TestDoubleRiichi(t *testing.T) {
+	r, _ := newTestRound()
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Dealer's first discard declares riichi → daburi.
+	r.current = 0
+	if err := r.DeclareRiichi(context.Background(), "1m"); err != nil {
+		t.Fatal(err)
+	}
+	if !r.IsDoubleRiichi(0) {
+		t.Fatal("first-discard riichi should be double")
+	}
+	// Rotate: seat 2 has already discarded before declaring → not double.
+	r.current = 2
+	if _, err := r.Draw(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.Discard(context.Background(), "3z"); err != nil {
+		t.Fatal(err)
+	}
+	r.current = 2
+	if err := r.DeclareRiichi(context.Background(), "1s"); err != nil {
+		t.Fatal(err)
+	}
+	if r.IsDoubleRiichi(2) {
+		t.Fatal("post-discard riichi must not be double")
+	}
+}
