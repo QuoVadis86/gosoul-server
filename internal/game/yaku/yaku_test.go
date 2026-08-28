@@ -73,7 +73,7 @@ func TestCalcChiitoitsu(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatal("chiitoitsu should decompose")
 	}
-	fr := Calc(res[0], hand, &ctx{Zimo: true, Menzen: true})
+	fr := Calc(res[0], hand, &Ctx{Zimo: true, Menzen: true})
 	found := false
 	for _, f := range fr.Fans {
 		if f.Name == "chiitoitsu" {
@@ -91,7 +91,7 @@ func TestCalcKokushi(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatal("kokushi should decompose")
 	}
-	fr := Calc(res[0], hand, &ctx{Zimo: true, Menzen: true})
+	fr := Calc(res[0], hand, &Ctx{Zimo: true, Menzen: true})
 	if !fr.Yakuman || fr.Fans[0].Name != "kokushi" {
 		t.Fatalf("expected kokushi, got %+v", fr.Fans)
 	}
@@ -104,7 +104,7 @@ func TestCalcTanyao(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatal("tanyao hand should decompose")
 	}
-	fr := Calc(res[0], full, &ctx{TanyaoOK: true, Menzen: true})
+	fr := Calc(res[0], full, &Ctx{Zimo: true, Menzen: true})
 	found := false
 	for _, f := range fr.Fans {
 		if f.Name == "tanyao" {
@@ -123,7 +123,7 @@ func TestCalcYakuhai(t *testing.T) {
 	if len(res) == 0 {
 		t.Fatal("yakuhai hand should decompose")
 	}
-	fr := Calc(res[0], full, &ctx{RoundWind: 0, SeatWind: 0, Menzen: true})
+	fr := Calc(res[0], full, &Ctx{RoundWind: 0, SeatWind: 0, Menzen: true})
 	found := false
 	for _, f := range fr.Fans {
 		if f.Name == "haku" {

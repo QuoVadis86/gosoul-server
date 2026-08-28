@@ -4,12 +4,13 @@ import "context"
 
 // RoundMeta describes the parameters of a round about to start.
 type RoundMeta struct {
-	NumPlayers int
-	Kyoku      int // 0..3 (round index); dealer = Kyoku % NumPlayers
-	Honba      int
-	Liqibang   int
-	Sanma      bool // three-player (108 tiles, no 2-8m)
-	NotenBappu bool // ryukyoku penalty on/off
+	NumPlayers   int
+	InitialScore int // default 25000 (canonical riichi)
+	Kyoku        int // 0..3 (round index); dealer = Kyoku % NumPlayers
+	Honba        int
+	Liqibang     int
+	Sanma        bool // three-player (108 tiles, no 2-8m)
+	NotenBappu   bool // ryukyoku penalty on/off
 }
 
 // Wall is a fully prescribed tile layout for one round. It decouples the game

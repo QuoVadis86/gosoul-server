@@ -72,7 +72,7 @@ func TsumoPayment(han, fu int, winnerDealer bool) (dealerPays, nonDealerPays int
 
 // Fu computes the fu count for a hand. winOnClosed marks a ron win on a
 // closed hand (menzen ron +10), instead of a closed tsumo (+2).
-func Fu(r *Result, c *ctx, winOnClosed bool) int {
+func Fu(r *Result, c *Ctx, winOnClosed bool) int {
 	fu := 20
 	if c.Zimo {
 		fu += 2

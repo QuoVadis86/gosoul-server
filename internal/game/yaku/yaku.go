@@ -1,7 +1,7 @@
 package yaku
 
 // ctx carries everything yaku evaluation needs beyond the decomposition.
-type ctx struct {
+type Ctx struct {
 	SeatWind  int // 0=E 1=S 2=W 3=N
 	RoundWind int
 	Zimo      bool
@@ -11,7 +11,6 @@ type ctx struct {
 	Ippatsu   bool
 	Rinshan   bool // tsumo after a kan
 	Chankan   bool // ron on a ron-eligible discard by someone else (抢杠/荣和)
-	TanyaoOK  bool
 	Honba     int
 }
 
@@ -29,7 +28,7 @@ type FanResult struct {
 }
 
 // Calc evaluates every yaku on a decomposition and returns the combined han.
-func Calc(r *Result, hand []T, c *ctx) *FanResult {
+func Calc(r *Result, hand []T, c *Ctx) *FanResult {
 	// chiitoitsu is a special shape: seven pairs (2 han).
 	if len(r.Melds) == 0 && isChiitoitsu(hand) {
 		return &FanResult{Fans: []Fan{{Name: "chiitoitsu", Han: 2}}, Total: 2}
@@ -43,14 +42,11 @@ func Calc(r *Result, hand []T, c *ctx) *FanResult {
 		out = append(out, Fan{Name: name, Han: han})
 	}
 
-	closedSets := 0
 	openCount := 0
 	shuntsuCount := 0
 	for _, m := range r.Melds {
 		if m.Open {
 			openCount++
-		} else {
-			closedSets++
 		}
 		if m.Shuntsu {
 			shuntsuCount++
@@ -89,11 +85,9 @@ func Calc(r *Result, hand []T, c *ctx) *FanResult {
 		add("pinfu", 1)
 	}
 
-	// tanyao
+	// tanyao: no terminals or honors anywhere.
 	if tanyao(r, hand) {
-		if c.TanyaoOK {
-			add("tanyao", 1)
-		}
+		add("tanyao", 1)
 	}
 
 	// yakuhai
@@ -103,11 +97,9 @@ func Calc(r *Result, hand []T, c *ctx) *FanResult {
 		}
 	}
 
-	// Toitoi vs sanshoku etc.
-	if openCount == 0 {
-		if closedSets == 4 { // no sequences at all
-			add("toitoi", 2)
-		}
+	// Toitoi: every set is a triplet (concealed or open).
+	if shuntsuCount == 0 && len(r.Melds) == 4 {
+		add("toitoi", 2)
 	}
 
 	if chanta(r, hand, false) {
@@ -158,9 +150,9 @@ func Calc(r *Result, hand []T, c *ctx) *FanResult {
 	return &FanResult{Fans: out, Total: total}
 }
 
-func (c *ctx) valuedPair(pair T) bool { return pair.IsHonor() }
+func (c *Ctx) valuedPair(pair T) bool { return pair.IsHonor() }
 
-func isValuelessPair(pair T, c *ctx) bool {
+func isValuelessPair(pair T, c *Ctx) bool {
 	if pair.IsHonor() {
 		return false
 	}
@@ -182,7 +174,7 @@ func tanyao(r *Result, hand []T) bool {
 	return true
 }
 
-func yakuhai(r *Result, c *ctx) []string {
+func yakuhai(r *Result, c *Ctx) []string {
 	var dragons []string
 	var winds []string
 	seatTile := T(string(rune('1'+c.SeatWind)) + "z")
@@ -333,7 +325,7 @@ func ittsuHan(menzen bool) int {
 	return 1
 }
 
-func yakuman(r *Result, hand []T, c *ctx) string {
+func yakuman(r *Result, hand []T, c *Ctx) string {
 	// kokushi: all terminals/honors once each plus one duplicate.
 	if isKokushi(hand) {
 		return "kokushi"
