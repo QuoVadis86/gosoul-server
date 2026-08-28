@@ -209,17 +209,22 @@ type numEntry struct {
 // accountRPC projects an account for client rendering.
 func (h *handler) accountRPC(home *user.Home) *accountRPC {
 	return &accountRPC{
-		AccountID: uint32(home.Account.ID),
-		Nickname:  home.Account.Nickname,
-		AvatarID:  uint32(home.Account.AvatarID),
-		Level:     &levelRPC{ID: uint32(home.Account.LevelID), Score: uint32(home.Account.LevelScore)},
-		Level3:    &levelRPC{ID: 1001, Score: 0},
-		VIP:       uint32(home.Account.VIP),
-		Title:     uint32(home.Account.Title),
+		AccountID:   uint32(home.Account.ID),
+		Nickname:    home.Account.Nickname,
+		AvatarID:    uint32(home.Account.AvatarID),
+		Level:       &levelRPC{ID: uint32(home.Account.LevelID), Score: uint32(home.Account.LevelScore)},
+		Level3:      &levelRPC{ID: 1001, Score: 0},
+		VIP:         uint32(home.Account.VIP),
+		Title:       uint32(home.Account.Title),
+		LoginTime:   uint32(home.Account.LastLogin),
+		LogoutTime:  0,
+		RoomID:      0,
 		AntiAddiction: struct {
 			OnlineDuration uint32 `json:"onlineDuration"`
 		}{},
 		Email:       home.Account.Username,
+		PhoneVerify: 0,
+		EmailVerify: 1,
 		AvatarFrame: 0,
 		Gold:        uint32(home.Wallet.Gold),
 		Diamond:     uint32(home.Wallet.Diamond),

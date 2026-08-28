@@ -5,6 +5,7 @@ package lobby
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -106,8 +107,10 @@ type reqLogin struct {
 func (h *handler) login(ctx *router.Context) error {
 	var req reqLogin
 	if err := ctx.Reg.DecodeInto(requestType(ctx.Method), ctx.Payload, &req); err != nil {
+		h.log.Error("login decode failed", "method", ctx.Method, "err", err)
 		return err
 	}
+	h.log.Info("login decision", "method", ctx.Method, "token", req.AccessToken, "account", req.Account, "email", req.Email)
 	// token-based 登录（oauth2Login/fastLogin）：客户端游客 token / 旧 local-token-N
 	if token := req.AccessToken; token != "" {
 		acc, err := h.user.LoginByToken(context.Background(), tokenKey(token))
@@ -153,7 +156,7 @@ func (h *handler) login(ctx *router.Context) error {
 }
 
 func (h *handler) respondLogin(ctx *router.Context, acc *user.Account, home *user.Home) error {
-	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, &resLogin{
+	res := &resLogin{
 		Error:                 &errBody{},
 		AccountID:             uint32(acc.ID),
 		Account:               h.accountRPC(home),
@@ -162,6 +165,16 @@ func (h *handler) respondLogin(ctx *router.Context, acc *user.Account, home *use
 		Country:               "chs",
 		IsIDCardAuthed:        true,
 		SignupTime:            uint32(acc.CreatedAt),
+	}
+	if b, err := json.Marshal(res); err == nil {
+		h.log.Info("reslogin payload", "json", string(b))
+	}
+	if err := ctx.Session.Respond(ctx.MsgID, protocol.TypeResLogin, res); err != nil {
+		return err
+	}
+	// 登录成功后推送账号数值，客户端依赖此刷新大厅钱包/资源。
+	return ctx.Session.Notify(protocol.NotifyAccountUpdate, &notifyAccountUpdate{
+		Update: h.updatePayload(acc.ID),
 	})
 }
 

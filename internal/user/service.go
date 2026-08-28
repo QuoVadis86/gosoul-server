@@ -6,10 +6,9 @@ package user
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"time"
-
-	"golang.org/x/crypto/bcrypt"
 )
 
 // ErrTaken is returned when a signup collides with an existing username.
@@ -35,7 +34,9 @@ func NewService(a AccountRepo, c CharacterRepo, w WalletRepo) *Service {
 	return &Service{accounts: a, chars: c, wallets: w}
 }
 
-// Signup registers a new account. Passwords are bcrypt-hashed before storage.
+// Signup registers a new account. The client already digests the password
+// (Majsoul digests it before transmission), so the transmitted credential is
+// stored verbatim and compared verbatim at login; hashing happens client-side.
 func (s *Service) Signup(ctx context.Context, username, password, nickname string) (*Account, error) {
 	existing, err := s.accounts.GetByUsername(ctx, username)
 	if err == nil && existing != nil {
@@ -47,13 +48,9 @@ func (s *Service) Signup(ctx context.Context, username, password, nickname strin
 	if nickname == "" {
 		nickname = username
 	}
-	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
-	if err != nil {
-		return nil, err
-	}
 	acc := &Account{
 		Username:     username,
-		PasswordHash: string(hash),
+		PasswordHash: password,
 		Nickname:     nickname,
 		AvatarID:     400101,
 		LevelID:      1001,
@@ -78,7 +75,7 @@ func (s *Service) Login(ctx context.Context, username, password string) (*Accoun
 		return nil, err
 	}
 	if acc.PasswordHash != "" {
-		if err := bcrypt.CompareHashAndPassword([]byte(acc.PasswordHash), []byte(password)); err != nil {
+		if subtle.ConstantTimeCompare([]byte(acc.PasswordHash), []byte(password)) != 1 {
 			return nil, ErrBadPassword
 		}
 	}
