@@ -34,8 +34,8 @@ func usernameFromToken(token string) int64 {
 }
 
 // Handlers registers every lobby RPC the client uses at login.
-func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry, rooms *room.Service) {
-	h := &handler{user: svc, log: log, rooms: rooms}
+func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protocol.Registry, rooms *room.Service, gameAddr string) {
+	h := &handler{user: svc, log: log, rooms: rooms, gameAddr: gameAddr}
 
 	r.Handle(protocol.MethodRouteRequestConnection, h.requestConnection)
 	r.Handle(protocol.MethodRouteHeartbeat, h.heartbeat)
@@ -78,14 +78,17 @@ func Handlers(svc *user.Service, log *slog.Logger, r *router.Router, reg *protoc
 	r.Handle(protocol.MethodLobbyAddRoomRobot, h.addRoomRobot)
 	r.Handle(protocol.MethodLobbyKickPlayer, h.kickPlayer)
 	r.Handle(protocol.MethodLobbyFetchRoom, h.fetchRoom)
+	r.Handle(protocol.MethodLobbyMatchGame, h.matchGame)
+	r.Handle(protocol.MethodLobbyCancelMatch, h.cancelMatch)
 
 	registerEmptySurface(r, reg, log)
 }
 
 type handler struct {
-	user  *user.Service
-	log   *slog.Logger
-	rooms *room.Service
+	user     *user.Service
+	log      *slog.Logger
+	rooms    *room.Service
+	gameAddr string
 }
 
 func (h *handler) requestConnection(ctx *router.Context) error {
@@ -338,6 +341,49 @@ func (h *handler) fetchRollingNotice(ctx *router.Context) error {
 
 func (h *handler) fetchActivity(ctx *router.Context) error {
 	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResActivityList, &resActivityList{Error: &errBody{}})
+}
+
+type notifyMatchGameStart struct {
+	GameURL      string `json:"gameUrl"`
+	ConnectToken string `json:"connectToken"`
+	GameUUID     string `json:"gameUuid"`
+	MatchModeID  uint32 `json:"matchModeId"`
+	Location     string `json:"location"`
+}
+
+// matchGame answers a ranked-casual queue request by acknowledging immediately
+// and pushing NotifyMatchGameStart shortly after, mirroring the reference.
+func (h *handler) matchGame(ctx *router.Context) error {
+	var req struct {
+		MatchType uint32 `json:"matchType"`
+		Mode      uint32 `json:"mode"`
+	}
+	_ = ctx.Reg.DecodeInto("lq.ReqJoinMatchQueue", ctx.Payload, &req)
+	accountID := uint32(ctx.Session.AccountID())
+	if accountID == 0 {
+		accountID = 10001
+	}
+	h.log.Info("match requested", "account", accountID, "type", req.MatchType, "mode", req.Mode)
+	if err := ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommon, empty{}); err != nil {
+		return err
+	}
+	token := fmt.Sprintf("local-connect-token-%d", accountID)
+	uuid := fmt.Sprintf("local-game-uuid-%d-%d", accountID, now())
+	go func() {
+		time.Sleep(1200 * time.Millisecond)
+		_ = ctx.Session.Notify(protocol.NotifyMatchGameStart, &notifyMatchGameStart{
+			GameURL:      h.gameAddr,
+			ConnectToken: token,
+			GameUUID:     uuid,
+			MatchModeID:  1,
+			Location:     "local",
+		})
+	}()
+	return nil
+}
+
+func (h *handler) cancelMatch(ctx *router.Context) error {
+	return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommon, empty{})
 }
 
 func (h *handler) createRoom(ctx *router.Context) error {

@@ -59,7 +59,7 @@ func main() {
 	}
 	r := router.New(reg)
 	roomSvc := room.New(roomAccounts{svc})
-	lobby.Handlers(svc, log, r, reg, roomSvc)
+	lobby.Handlers(svc, log, r, reg, roomSvc, cfg.Game.Addr())
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 

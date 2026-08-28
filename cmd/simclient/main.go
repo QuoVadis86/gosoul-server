@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -143,6 +144,32 @@ func main() {
 
 	send(".lq.Lobby.fetchRoom", "", nil)
 	recv("lq.ResSelfRoom")
+
+	send(".lq.Lobby.matchGame", "lq.ReqJoinMatchQueue", map[string]any{"matchType": 0, "mode": 0})
+	recv("lq.ResCommon")
+	// Give the match notify a beat to arrive after ResCommon.
+	time.Sleep(1600 * time.Millisecond)
+	for i := 0; i < 4; i++ {
+		_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_, data, err := c.ReadMessage()
+		if err != nil {
+			fmt.Printf(">>> matchnotify read end: %v\n", err)
+			break
+		}
+		f, ferr := protocol.DecodeFrame(data)
+		if ferr != nil {
+			break
+		}
+		got := ""
+		if f.Name != "" {
+			if f.Name == protocol.ActionPrototypeNamespace {
+				got = decodeAction(reg, f.Data)
+			} else if len(f.Data) > 0 {
+				got = decodeJSON(reg, strings.TrimPrefix(f.Name, ".lq."), f.Data)
+			}
+		}
+		fmt.Printf(">>> matchnotify name=%q json=%s\n", f.Name, got)
+	}
 
 	if *method != "" {
 		send(*method, "", nil)

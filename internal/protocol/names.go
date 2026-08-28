@@ -58,6 +58,12 @@ const (
 	MethodLobbyKickPlayer    = ".lq.Lobby.roomKickPlayer"
 	MethodLobbyFetchRoom     = ".lq.Lobby.fetchRoom"
 	MethodLobbyFetchRoomList = ".lq.Lobby.fetchRoomList"
+
+	MethodLobbyMatchGame          = ".lq.Lobby.matchGame"
+	MethodLobbyCancelMatch        = ".lq.Lobby.cancelMatch"
+	MethodLobbyMatchShiLian       = ".lq.Lobby.matchShiLian"
+	MethodLobbyStartUnifiedMatch  = ".lq.Lobby.startUnifiedMatch"
+	MethodLobbyCancelUnifiedMatch = ".lq.Lobby.cancelUnifiedMatch"
 )
 
 // FastTest 对局方法（对局会话层落地前由 surface 空响应兜底）。
