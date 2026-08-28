@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/qy-info/gosoul/internal/deal"
 	"github.com/qy-info/gosoul/internal/game/ai"
 	"github.com/qy-info/gosoul/internal/game/engine"
 	"github.com/qy-info/gosoul/internal/paipu"
@@ -254,4 +255,47 @@ func TestArchiveCreditsAchievement(t *testing.T) {
 	if fa.accountID != 9 || fa.achieveID != PlayedGame || fa.delta != 1 {
 		t.Fatalf("hook = (%d,%d,%d)", fa.accountID, fa.achieveID, fa.delta)
 	}
+}
+
+func TestSanmaRoundRuns(t *testing.T) {
+	fake := &fakeSess{}
+	s := &session{
+		Seat:       0,
+		GameUUID:   "g-sanma-1",
+		numPlayers: 3,
+		round:      &roundState{},
+	}
+	factory := &deal.RandomWallFactory{}
+	meta := engine.RoundMeta{NumPlayers: 3, InitialScore: 35000, Kyoku: 0, Sanma: true, NotenBappu: true}
+	w, err := factory.BuildWall(context.Background(), meta)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 3 hands of 13 = 39 tiles, plus dealer extra.
+	if len(w.Hands) != 3 {
+		t.Fatalf("sanma hands = %d, want 3", len(w.Hands))
+	}
+	for i, h := range w.Hands {
+		if len(h) != 13 {
+			t.Fatalf("seat %d hand = %d tiles, want 13", i, len(h))
+		}
+		for _, tile := range h {
+			// Sanma drops 2m..8m.
+			if tile[1] == 'm' && tile[0] >= '2' && tile[0] <= '8' {
+				t.Fatalf("sanma deck contains %s", tile)
+			}
+		}
+	}
+	r := engine.NewRound(meta, w, &fixedBot{tile: ""})
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if r.Meta.NumPlayers != 3 {
+		t.Fatalf("round players = %d, want 3", r.Meta.NumPlayers)
+	}
+	if len(r.Dora) == 0 {
+		t.Fatal("sanma round missing dora indicators")
+	}
+	_ = s
+	_ = fake
 }

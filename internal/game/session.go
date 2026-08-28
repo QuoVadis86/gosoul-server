@@ -24,6 +24,8 @@ type session struct {
 	ach       Achievements
 	kyoku     int
 	honba     int
+	// numPlayers is the table size (3 for sanma, 4 for yonma).
+	numPlayers int
 }
 
 // Handlers registers the FastTest surface on r.

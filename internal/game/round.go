@@ -24,12 +24,16 @@ type roundState struct {
 // ActionNewRound notify to the seat so the client renders the initial hand.
 func (h *handlers) startRound(ctx context.Context, s *session, sess router.Session) error {
 	factory := deal.RandomWallFactory{}
+	n := s.numPlayers
+	if n == 0 {
+		n = 4
+	}
 	meta := engine.RoundMeta{
-		NumPlayers:   4,
+		NumPlayers:   n,
 		InitialScore: 25000,
 		Kyoku:        s.kyoku,
 		Honba:        s.honba,
-		Sanma:        false,
+		Sanma:        n == 3,
 		NotenBappu:   true,
 	}
 	w, err := factory.BuildWall(ctx, meta)
