@@ -32,6 +32,7 @@ func (h *handlers) authGame(ctx *router.Context) error {
 		GameUUID:  req.GameID,
 		StartedAt: time.Now(),
 		paipu:     h.paipu,
+		ach:       h.ach,
 	}
 	if s.GameUUID == "" {
 		s.GameUUID = fmt.Sprintf("game-%d-%d", accountID, time.Now().Unix())

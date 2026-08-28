@@ -34,6 +34,24 @@ func (a roomAccounts) Account(accountID uint32) (string, uint32) {
 	return acc.Nickname, uint32(acc.AvatarID)
 }
 
+// achHook advances achievement counters when a round finishes.
+type achHook struct{ svc *user.Service }
+
+func (h achHook) Increment(ctx context.Context, accountID int64, achieveID, delta int64) error {
+	cur, err := h.svc.Achievements(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	progress := delta
+	for _, a := range cur {
+		if a.AchieveID == achieveID {
+			progress += a.Progress
+			break
+		}
+	}
+	return h.svc.SetAchievement(ctx, user.Achievement{AccountID: accountID, AchieveID: achieveID, Progress: progress})
+}
+
 func main() {
 	log := slog.New(slog.NewTextHandler(os.Stdout, nil))
 	slog.SetDefault(log)
@@ -66,7 +84,7 @@ func main() {
 
 	gameRouter := router.New(reg)
 	ppSvc := paipu.New(store.Paipu)
-	game.Handlers(gameRouter, log, ppSvc)
+	game.Handlers(gameRouter, log, ppSvc, achHook{svc})
 	gameSrv := transport.New(gameRouter, reg, log)
 	gameHTTP := &http.Server{Addr: cfg.Game.Addr(), Handler: http.HandlerFunc(gameSrv.HandleHTTP)}
 

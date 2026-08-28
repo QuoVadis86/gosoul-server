@@ -21,17 +21,23 @@ func (s *session) runRound(ctx context.Context) error {
 	return s.archive(ctx, r)
 }
 
-// archive persists the finished round as a paipu record when a store is wired.
+// archive persists the finished round as a paipu record when a store is wired,
+// and credits the round-completion achievement through the session's hook.
 func (s *session) archive(ctx context.Context, r *engine.Round) error {
-	if s.paipu == nil {
+	if s.paipu != nil {
+		payload := roundSnapshot{r.Winner, r.Scores, r.Kyoku, r.Honba}
+		b, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+		if err := s.paipu.Save(ctx, s.GameUUID, string(b)); err != nil {
+			return err
+		}
+	}
+	if s.ach == nil {
 		return nil
 	}
-	payload := roundSnapshot{r.Winner, r.Scores, r.Kyoku, r.Honba}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return s.paipu.Save(ctx, s.GameUUID, string(b))
+	return s.ach.Increment(ctx, int64(s.AccountID), PlayedGame, 1)
 }
 
 // roundSnapshot is the persisted shape of one finished round.

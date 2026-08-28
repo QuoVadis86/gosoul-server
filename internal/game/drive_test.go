@@ -191,3 +191,67 @@ func newTempStore(t *testing.T) (*storage.Store, error) {
 	t.Helper()
 	return storage.Open(t.TempDir() + "/db.sqlite")
 }
+
+type fakeAch struct {
+	mu        sync.Mutex
+	accountID int64
+	achieveID int64
+	delta     int64
+	calls     int
+}
+
+func (f *fakeAch) Increment(_ context.Context, accountID, achieveID, delta int64) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.accountID, f.achieveID, f.delta = accountID, achieveID, delta
+	f.calls++
+	return nil
+}
+
+func TestArchiveCreditsAchievement(t *testing.T) {
+	store, err := newTempStore(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	fake := &fakeSess{}
+	fa := &fakeAch{}
+	s := &session{
+		AccountID: 9,
+		Seat:      0,
+		GameUUID:  "g-ach-1",
+		round:     &roundState{},
+		paipu:     paipu.New(store.Paipu),
+		ach:       fa,
+	}
+	wall := &engine.Wall{
+		Hands:       make([][]engine.Tile, 4),
+		DeadWall:    []engine.Tile{"1m", "2m", "3z", "4z", "5z", "6z", "7z", "1p", "2p", "3p", "4p", "5p", "6p", "7p"},
+		Wall:        nil,
+		DealerExtra: "5z",
+	}
+	for i := range wall.Hands {
+		wall.Hands[i] = []engine.Tile{"1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "1p", "1s", "1z", "2z"}
+	}
+	for i := 0; i < 20; i++ {
+		wall.Wall = append(wall.Wall, []engine.Tile{"1m", "2m", "3p", "4s", "5z"}...)
+	}
+	d := &fixedBot{tile: ""}
+	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, wall, d)
+	s.round.round = r
+	s.round.drv = newDrive(fake, nil, func(int) ai.Player { return d })
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.runRound(context.Background()); err != nil {
+		t.Fatalf("runRound: %v", err)
+	}
+	fa.mu.Lock()
+	defer fa.mu.Unlock()
+	if fa.calls != 1 {
+		t.Fatalf("achievement calls = %d, want 1", fa.calls)
+	}
+	if fa.accountID != 9 || fa.achieveID != PlayedGame || fa.delta != 1 {
+		t.Fatalf("hook = (%d,%d,%d)", fa.accountID, fa.achieveID, fa.delta)
+	}
+}

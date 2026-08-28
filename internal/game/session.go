@@ -21,13 +21,17 @@ type session struct {
 	round     *roundState
 	drv       *drive
 	paipu     *paipu.Service
+	ach       Achievements
 	kyoku     int
 	honba     int
 }
 
 // Handlers registers the FastTest surface on r.
-func Handlers(r *router.Router, log *slog.Logger, pp *paipu.Service) {
-	h := &handlers{log: log, sessions: make(map[router.Session]*session), paipu: pp}
+func Handlers(r *router.Router, log *slog.Logger, pp *paipu.Service, ach Achievements) {
+	if ach == nil {
+		ach = noopAchievements{}
+	}
+	h := &handlers{log: log, sessions: make(map[router.Session]*session), paipu: pp, ach: ach}
 	r.Handle(protocol.MethodFastTestAuthGame, h.authGame)
 	r.Handle(protocol.MethodFastTestEnterGame, h.enterGame)
 	r.Handle(protocol.MethodFastTestSyncGame, h.syncGame)
@@ -43,6 +47,7 @@ type handlers struct {
 	log      *slog.Logger
 	sessions map[router.Session]*session
 	paipu    *paipu.Service
+	ach      Achievements
 }
 
 func (h *handlers) ok(ctx *router.Context) error {
