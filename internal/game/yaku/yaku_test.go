@@ -167,3 +167,25 @@ func TestNextWraps(t *testing.T) {
 		}
 	}
 }
+
+func TestCountDora(t *testing.T) {
+	// indicator 1m → 1m's next is 2m; hand with two 2m = 2 dora.
+	hand := ParseTiles("2m2m5p3s9z1m")
+	if got := CountDora(hand, ParseTiles("1m")); got != 2 {
+		t.Fatalf("dora(1m→2m) = %d, want 2", got)
+	}
+	// red five is worth one on top of normal value.
+	hand2 := ParseTiles("0m2m5p3s9z")
+	if got := CountDora(hand2, ParseTiles("1m")); got != 2 {
+		t.Fatalf("red five dora = %d, want 2", got)
+	}
+	// honor wrap: indicator 7z → next wraps to 1z.
+	hand3 := ParseTiles("1z2z3z4z5z6z7z")
+	if got := CountDora(hand3, ParseTiles("7z")); got != 1 {
+		t.Fatalf("honor wrap dora = %d, want 1", got)
+	}
+	// non-matching indicator contributes nothing.
+	if got := CountDora(ParseTiles("5p5p5p1m1m"), ParseTiles("9s")); got != 0 {
+		t.Fatalf("unrelated indicator = %d, want 0", got)
+	}
+}

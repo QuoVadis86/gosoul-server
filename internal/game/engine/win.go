@@ -19,11 +19,16 @@ type Win struct {
 // CheckWin evaluates whether the given player's hand wins with the provided
 // winning tile in hand. The hand must be the full 14 tiles including the
 // winning tile for ron, or 13 concealed tiles plus the drawn tile for tsumo.
-// melds lists that seat's called groups (nil for a closed hand).
-func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int) *Win {
+// melds lists that seat's called groups (nil for a closed hand). indicators
+// carries the live dora indicators; their dora value is added to the han.
+func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int, indicators []Tile) *Win {
 	ytiles := make([]yaku.T, 0, len(hand))
 	for _, t := range hand {
 		ytiles = append(ytiles, yaku.T(t))
+	}
+	doraInd := make([]yaku.T, 0, len(indicators))
+	for _, t := range indicators {
+		doraInd = append(doraInd, yaku.T(t))
 	}
 	open := make([]yaku.Mentsu, 0, len(melds))
 	for _, m := range melds {
@@ -46,17 +51,20 @@ func CheckWin(seat int, hand []Tile, melds []Meld, tsumo bool, ronFrom int) *Win
 		SeatWind:  seat % 4,
 		RoundWind: 0,
 	}
-	// Best-effort fu from the winning shape.
 	fr := yaku.Calc(res, ytiles, ctx)
+	doraN := yaku.CountDora(ytiles, doraInd)
 	win := &Win{
 		Seat:    seat,
 		Tsumo:   tsumo,
-		Han:     fr.Total,
+		Han:     fr.Total + doraN,
 		Yakuman: fr.Yakuman,
 		RonFrom: ronFrom,
 	}
 	for _, f := range fr.Fans {
 		win.Yaku = append(win.Yaku, f.Name)
+	}
+	if doraN > 0 {
+		win.Yaku = append(win.Yaku, "dora")
 	}
 	win.Fu = yaku.Fu(res, ctx, !tsumo && len(open) == 0)
 	return win
