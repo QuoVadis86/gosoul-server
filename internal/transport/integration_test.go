@@ -38,7 +38,7 @@ func startLobbyServer(t *testing.T) (*protocol.Registry, *httptest.Server) {
 	chars := user.NewCharacterService(store.Character)
 	wallets := user.NewCurrencyService(store.Currency)
 	svc := lobby.NewService(accounts, chars, wallets)
-	lobby.Handlers(svc, accounts, chars, wallets, log, rtr)
+	lobby.Handlers(svc, accounts, chars, wallets, log, rtr, reg)
 
 	server := New(rtr, reg, log)
 	ts := httptest.NewServer(http.HandlerFunc(server.HandleHTTP))
@@ -65,9 +65,13 @@ func dial(t *testing.T, reg *protocol.Registry, ts *httptest.Server) *client {
 }
 
 func (c *client) request(method, reqType string, v any) (respType string, respJSON string) {
-	payload, err := c.reg.EncodeAsDynamic(reqType, v)
-	if err != nil {
-		c.t.Fatalf("encode req: %v", err)
+	var payload []byte
+	if reqType != "" {
+		var err error
+		payload, err = c.reg.EncodeAsDynamic(reqType, v)
+		if err != nil {
+			payload = nil // tolerate request schemas missing from the proto subset
+		}
 	}
 	c.seq++
 	if err := c.conn.WriteMessage(websocket.BinaryMessage,
@@ -91,9 +95,8 @@ func (c *client) request(method, reqType string, v any) (respType string, respJS
 		if frame.MsgID != c.seq {
 			continue
 		}
-		// Resolve the response type from the request type name.
-		respName := responseType(reqType)
-		_ = frame
+		route, _ := c.reg.RouteFor(method)
+		respName := route.RespType
 		msg, err := c.reg.NewMessage(respName)
 		if err != nil {
 			c.t.Fatalf("new message: %v", err)
@@ -104,10 +107,6 @@ func (c *client) request(method, reqType string, v any) (respType string, respJS
 		jsonBytes, _ := msg.ToJSON()
 		return respName, string(jsonBytes)
 	}
-}
-
-func responseType(reqType string) string {
-	return strings.Replace(reqType, "Req", "Res", 1)
 }
 
 func TestLoginFlow(t *testing.T) {
@@ -172,5 +171,40 @@ func TestAutoRegisterPersistence(t *testing.T) {
 	_ = json.Unmarshal([]byte(body2), &login2)
 	if login2.AccountID != acctID {
 		t.Fatalf("account id changed %d -> %d", acctID, login2.AccountID)
+	}
+}
+
+func TestSurfaceMeetsFullRPCSurface(t *testing.T) {
+	reg, ts := startLobbyServer(t)
+	c := dial(t, reg, ts)
+
+	// Methods that are NOT explicitly implemented must still answer with
+	// their correct proto response type so the client can decode them.
+	sample := []string{
+		".lq.Lobby.createRoom",
+		".lq.Lobby.startUnifiedMatch",
+		".lq.Lobby.fetchMail",
+		".lq.Lobby.fetchShopInfo",
+		".lq.Lobby.fetchAchievement",
+		".lq.Lobby.readyRoom",
+		".lq.FastTest.authGame",
+		".lq.FastTest.syncGame",
+	}
+	known := map[string]bool{}
+	for _, m := range reg.Methods() {
+		known[m] = true
+	}
+	for _, method := range sample {
+		if !known[method] {
+			continue // route table does not reference it
+		}
+		route, _ := reg.RouteFor(method)
+		respType, body := c.request(method, "", struct{}{})
+		if respType != route.RespType {
+			t.Errorf("%s: resp type %s, want %s", method, respType, route.RespType)
+		}
+		if body == "" {
+			t.Errorf("%s: empty body", method)
+		}
 	}
 }

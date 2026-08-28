@@ -46,6 +46,12 @@ func (r *Router) Handle(method string, h Handler) {
 	r.handlers[method] = h
 }
 
+// Has reports whether a handler is registered for the method.
+func (r *Router) Has(method string) bool {
+	_, ok := r.handlers[method]
+	return ok
+}
+
 // Dispatch runs the handler for a method. Returns false when unregistered.
 func (r *Router) Dispatch(s Session, method string, msgID uint16, payload []byte) bool {
 	h, ok := r.handlers[method]

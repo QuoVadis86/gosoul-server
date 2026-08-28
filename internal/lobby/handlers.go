@@ -7,12 +7,13 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/router"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
 // Handlers registers every lobby RPC the client uses at login.
-func Handlers(svc *Service, accounts *user.AccountService, chars *user.CharacterService, wallets *user.CurrencyService, log *slog.Logger, r *router.Router) {
+func Handlers(svc *Service, accounts *user.AccountService, chars *user.CharacterService, wallets *user.CurrencyService, log *slog.Logger, r *router.Router, reg *protocol.Registry) {
 	h := &handler{svc: svc, accounts: accounts, chars: chars, wallets: wallets, log: log}
 
 	r.Handle(".lq.Route.requestConnection", h.requestConnection)
@@ -34,6 +35,8 @@ func Handlers(svc *Service, accounts *user.AccountService, chars *user.Character
 	r.Handle(".lq.Lobby.fetchLastPrivacy", h.fetchLastPrivacy)
 	r.Handle(".lq.Lobby.fetchInfo", h.fetchInfo)
 	r.Handle(".lq.Lobby.fetchConnectionInfo", h.fetchConnectionInfo)
+
+	registerEmptySurface(r, reg, log)
 }
 
 type handler struct {

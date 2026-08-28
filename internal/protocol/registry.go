@@ -63,6 +63,9 @@ func Load() (*Registry, error) {
 	if err := reg.buildRoutes(); err != nil {
 		return nil, err
 	}
+	if err := reg.ensureSurfaceTypes(); err != nil {
+		return nil, err
+	}
 	return reg, nil
 }
 
@@ -74,6 +77,15 @@ func (r *Registry) NewMessage(typeName string) (*Message, error) {
 		return nil, err
 	}
 	return &Message{ref: mt.New()}, nil
+}
+
+// Methods returns every registered method name.
+func (r *Registry) Methods() []string {
+	out := make([]string, 0, len(r.routes))
+	for m := range r.routes {
+		out = append(out, m)
+	}
+	return out
 }
 
 // RouteFor returns the request/response types for a method, if registered.
@@ -179,4 +191,55 @@ func (r *Registry) DecodeInto(typeName string, data []byte, v any) error {
 		return err
 	}
 	return json.Unmarshal(jsonBytes, v)
+}
+
+// ensureSurfaceTypes registers empty skeleton messages for every request and
+// response type referenced by the route table that the hand-written proto
+// subset does not define. The full RPC surface therefore stays encodable and
+// decodable before individual message bodies are fleshed out.
+func (r *Registry) ensureSurfaceTypes() error {
+	existing := map[string]bool{}
+	r.types.RangeMessages(func(mt protoreflect.MessageType) bool {
+		existing[string(mt.Descriptor().FullName())] = true
+		return true
+	})
+
+	seen := map[string]bool{}
+	var missing []string
+	addMissing := func(t string) {
+		short := strings.TrimPrefix(t, "lq.")
+		if existing["lq."+short] || seen[short] {
+			return
+		}
+		seen[short] = true
+		missing = append(missing, short)
+	}
+	for _, route := range r.routes {
+		addMissing(route.ReqType)
+		addMissing(route.RespType)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+
+	var b strings.Builder
+	b.WriteString("syntax = \"proto3\";\npackage lq;\n\n")
+	for _, name := range missing {
+		b.WriteString("message " + name + " {}\n")
+	}
+
+	compiler := protocompile.Compiler{Resolver: sourceStringResolver{src: b.String()}}
+	files, err := compiler.Compile(context.Background(), "surface.proto")
+	if err != nil {
+		return fmt.Errorf("compile surface types: %w", err)
+	}
+	registerMessages(r.types, files[0].Messages())
+	return nil
+}
+
+// sourceStringResolver serves one generated in-memory proto file.
+type sourceStringResolver struct{ src string }
+
+func (s sourceStringResolver) FindFileByPath(path string) (protocompile.SearchResult, error) {
+	return protocompile.SearchResult{Source: strings.NewReader(s.src)}, nil
 }

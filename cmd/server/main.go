@@ -48,7 +48,7 @@ func main() {
 	}
 	r := router.New(reg)
 	svc := lobby.NewService(accounts, chars, wallets)
-	lobby.Handlers(svc, accounts, chars, wallets, log, r)
+	lobby.Handlers(svc, accounts, chars, wallets, log, r, reg)
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
