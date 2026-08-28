@@ -299,3 +299,46 @@ func TestSanmaRoundRuns(t *testing.T) {
 	_ = s
 	_ = fake
 }
+
+func TestHumanRiichiOpApplied(t *testing.T) {
+	fake := &fakeSess{}
+	s := &session{
+		Seat:  0,
+		round: &roundState{},
+	}
+	wall := &engine.Wall{
+		Hands:       make([][]engine.Tile, 4),
+		DeadWall:    []engine.Tile{"1m", "2m", "3z", "4z", "5z", "6z", "7z", "1p", "2p", "3p", "4p", "5p", "6p", "7p"},
+		DealerExtra: "5z",
+		Wall:        []engine.Tile{"6p"},
+	}
+	for i := range wall.Hands {
+		wall.Hands[i] = []engine.Tile{"1m", "2m", "3m", "4m", "5m", "6m", "7m", "8m", "9m", "1p", "1s", "1z", "2z"}
+	}
+	d := &fixedBot{tile: ""}
+	r := engine.NewRound(engine.RoundMeta{NumPlayers: 4, InitialScore: 25000, Kyoku: 0}, wall, d)
+	s.round.round = r
+	s.round.drv = newDrive(fake, nil, func(seat int) ai.Player {
+		if seat == 0 {
+			return nil // human
+		}
+		return d
+	})
+	if _, err := r.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	// Human declares riichi on the very first discard. With an empty wall the
+	// round ends right after, keeping the test deterministic.
+	ch := s.round.drv.HumanIn(0)
+	done := make(chan error, 1)
+	go func() {
+		done <- s.runRound(context.Background())
+	}()
+	ch <- humanOp{Type: opRiichi, Tile: "1m"}
+	if err := <-done; err != nil {
+		t.Fatalf("round after riichi: %v", err)
+	}
+	if !r.IsDoubleRiichi(0) {
+		t.Fatal("human first-discard riichi should be double")
+	}
+}

@@ -27,13 +27,7 @@ func (b *baseBot) ChooseCall(_ context.Context, _ *engine.View, _ []engine.CallO
 	return nil
 }
 
-func (b *baseBot) ChooseSelfAction(_ context.Context, _ *engine.View, ops []engine.SelfOp) *engine.SelfOp {
-	for _, op := range ops {
-		if op == engine.OpTsumo {
-			c := op
-			return &c
-		}
-	}
+func (b *baseBot) ChooseSelfAction(_ context.Context, _ *engine.View, _ []engine.SelfOp) *engine.SelfOp {
 	return nil
 }
 
