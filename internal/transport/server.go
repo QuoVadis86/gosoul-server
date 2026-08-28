@@ -128,7 +128,7 @@ func (s *Session) ActionNotify(action string, v any, step uint32) error {
 	if v == nil {
 		payload = nil
 	} else {
-		actionType := "lq." + action
+		actionType := protocol.TypePrefix + action
 		var err error
 		payload, err = s.reg.EncodeAsDynamic(actionType, v)
 		if err != nil {
@@ -148,7 +148,7 @@ func (s *Session) handleFrame(data []byte) {
 	case protocol.MsgRequest:
 		if !s.router.Dispatch(s, frame.Name, frame.MsgID, frame.Data) {
 			s.log.Debug("transport unhandled method", "method", frame.Name)
-			_ = s.Respond(frame.MsgID, "lq.ResCommon", empty{})
+			_ = s.Respond(frame.MsgID, protocol.TypeResCommon, empty{})
 		}
 	case protocol.MsgResponse:
 		// client acknowledgements to our notifies: ignore

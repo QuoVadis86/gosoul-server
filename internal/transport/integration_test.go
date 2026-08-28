@@ -34,11 +34,8 @@ func startLobbyServer(t *testing.T) (*protocol.Registry, *httptest.Server) {
 		t.Fatal(err)
 	}
 	rtr := router.New(reg)
-	accounts := user.NewAccountService(store.Account)
-	chars := user.NewCharacterService(store.Character)
-	wallets := user.NewCurrencyService(store.Currency)
-	svc := lobby.NewService(accounts, chars, wallets)
-	lobby.Handlers(svc, accounts, chars, wallets, log, rtr, reg)
+	svc := user.NewService(store.Account, store.Character, store.Wallet)
+	lobby.Handlers(svc, log, rtr, reg)
 
 	server := New(rtr, reg, log)
 	ts := httptest.NewServer(http.HandlerFunc(server.HandleHTTP))

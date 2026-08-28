@@ -1,89 +1,30 @@
-// Package storage owns persistence. Every repository is defined by an
-// interface in this package; the SQLite implementation lives alongside it and
-// a Postgres adapter can be swapped in without touching callers (see
-// ADR-0001 D2).
+// Package storage implements the persistence ports defined by the domain
+// (internal/user). It owns migrations and SQLite-backed repositories only;
+// entities and error contracts live in the domain, and storage depends on the
+// domain rather than the other way around.
 package storage
 
 import (
-	"context"
 	"database/sql"
 	"embed"
-	"errors"
 	"fmt"
 	"io/fs"
 
 	_ "modernc.org/sqlite"
+
+	"github.com/qy-info/gosoul/internal/user"
 )
 
 //go:embed migrations/*.sql
 var migrationsFS embed.FS
 
-// ErrNotFound is returned when a queried row does not exist.
-var ErrNotFound = errors.New("storage: not found")
-
-// Account is a user record.
-type Account struct {
-	ID           int64
-	Username     string
-	PasswordHash string
-	Nickname     string
-	AvatarID     int64
-	LevelID      int64
-	LevelScore   int64
-	VIP          int64
-	Title        int64
-	Signature    string
-	Verified     int64
-	CreatedAt    int64
-	LastLogin    int64
-}
-
-// AccountRepo persists user records.
-type AccountRepo interface {
-	Create(ctx context.Context, a *Account) error
-	GetByID(ctx context.Context, id int64) (*Account, error)
-	List(ctx context.Context, limit, offset int) ([]Account, error)
-	GetByUsername(ctx context.Context, username string) (*Account, error)
-	UpdateLogin(ctx context.Context, id int64, lastLogin int64) error
-}
-
-// Character is a licensed character on an account.
-type Character struct {
-	AccountID int64
-	CharID    int64
-	Level     int64
-	Exp       int64
-	SkinID    int64
-}
-
-// CharacterRepo persists character licenses.
-type CharacterRepo interface {
-	List(ctx context.Context, accountID int64) ([]Character, error)
-	Add(ctx context.Context, c Character) error
-}
-
-// Currency is an account's wallet.
-type Currency struct {
-	Gold       int64
-	Diamond    int64
-	SkinTicket int64
-}
-
-// CurrencyRepo persists wallets.
-type CurrencyRepo interface {
-	Get(ctx context.Context, accountID int64) (Currency, error)
-	AddGold(ctx context.Context, accountID, delta int64) error
-	AddDiamond(ctx context.Context, accountID, delta int64) error
-	AddSkinTicket(ctx context.Context, accountID, delta int64) error
-}
-
-// Store bundles the repositories behind one object.
+// Store bundles the repository implementations behind one object.
 type Store struct {
 	db *sql.DB
 
-	Account   AccountRepo
-	Character CharacterRepo
-	Currency  CurrencyRepo
+	Account   user.AccountRepo
+	Character user.CharacterRepo
+	Wallet    user.WalletRepo
 }
 
 // Open boots SQLite at path and applies all migrations.
@@ -92,7 +33,6 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("storage: open %s: %w", path, err)
 	}
-	// SQLite with a single writer per process is the norm for this project.
 	if _, err := db.Exec("PRAGMA journal_mode=WAL"); err != nil {
 		return nil, fmt.Errorf("storage: journal_mode: %w", err)
 	}
@@ -103,20 +43,16 @@ func Open(path string) (*Store, error) {
 		db.Close()
 		return nil, err
 	}
-	return newStore(db), nil
-}
-
-// Close releases the underlying database.
-func (s *Store) Close() error { return s.db.Close() }
-
-func newStore(db *sql.DB) *Store {
 	return &Store{
 		db:        db,
 		Account:   &accountRepo{db: db},
 		Character: &characterRepo{db: db},
-		Currency:  &currencyRepo{db: db},
-	}
+		Wallet:    &walletRepo{db: db},
+	}, nil
 }
+
+// Close releases the underlying database.
+func (s *Store) Close() error { return s.db.Close() }
 
 // migrate applies embedded SQL files in lexical order within a single write
 // transaction guarded by a user version marker.
@@ -166,16 +102,11 @@ func userVersion(db *sql.DB) (int64, error) {
 
 func versionOf(name string) int64 {
 	var n int64
-	consumed := 0
 	for _, c := range name {
 		if c < '0' || c > '9' {
 			break
 		}
 		n = n*10 + int64(c-'0')
-		consumed++
-	}
-	if consumed == 0 {
-		return 0
 	}
 	return n
 }

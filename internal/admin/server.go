@@ -4,28 +4,24 @@
 package admin
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
 
-	"github.com/qy-info/gosoul/internal/storage"
 	"github.com/qy-info/gosoul/internal/user"
 )
 
 // Server serves the GM HTTP API.
 type Server struct {
-	log      *slog.Logger
-	accounts *user.AccountService
-	chars    *user.CharacterService
-	wallets  *user.CurrencyService
+	log  *slog.Logger
+	user *user.Service
 }
 
-// New builds the GM surface over the user services.
-func New(log *slog.Logger, accounts *user.AccountService, chars *user.CharacterService, wallets *user.CurrencyService) *Server {
-	return &Server{log: log, accounts: accounts, chars: chars, wallets: wallets}
+// New builds the GM surface over the user domain.
+func New(log *slog.Logger, svc *user.Service) *Server {
+	return &Server{log: log, user: svc}
 }
 
 // Handler returns the HTTP mux.
@@ -45,12 +41,12 @@ func (s *Server) listAccounts(w http.ResponseWriter, r *http.Request) {
 			limit = n
 		}
 	}
-	accounts, err := s.accounts.List(r.Context(), limit)
+	list, err := s.user.List(r.Context(), limit)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, accounts)
+	writeJSON(w, list)
 }
 
 func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
@@ -63,7 +59,7 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusBadRequest, "bad json")
 		return
 	}
-	acc, err := s.accounts.Signup(r.Context(), body.Username, body.Password, body.Nickname)
+	acc, err := s.user.Signup(r.Context(), body.Username, body.Password, body.Nickname)
 	if errors.Is(err, user.ErrTaken) {
 		writeErr(w, http.StatusConflict, "username taken")
 		return
@@ -72,15 +68,14 @@ func (s *Server) createAccount(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	// Seed a fresh wallet.
-	_ = s.wallets.NewAccountAllowance(r.Context(), acc.ID, 0, 0, 0)
 	writeJSON(w, map[string]any{"id": acc.ID, "username": acc.Username, "nickname": acc.Nickname})
 }
 
 func (s *Server) getAccount(w http.ResponseWriter, r *http.Request) {
 	id, _ := strconv.ParseInt(r.PathValue("id"), 10, 64)
-	acc, err := s.accounts.Get(r.Context(), id)
-	if errors.Is(err, storage.ErrNotFound) {
+	ctx := r.Context()
+	acc, err := s.user.Get(ctx, id)
+	if errors.Is(err, user.ErrNotFound) {
 		writeErr(w, http.StatusNotFound, "account not found")
 		return
 	}
@@ -88,7 +83,12 @@ func (s *Server) getAccount(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	writeJSON(w, serializeAccount(r.Context(), acc, s.chars, s.wallets))
+	home, err := s.user.Home(ctx, id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, serializeHome(acc, home))
 }
 
 type grantBody struct {
@@ -106,36 +106,39 @@ func (s *Server) grantAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	ctx := r.Context()
-	if err := s.wallets.Grant(ctx, id, body.Gold, body.Diamond, body.SkinTicket); err != nil {
+	if err := s.user.Grant(ctx, id, body.Gold, body.Diamond, body.SkinTicket); err != nil {
 		writeErr(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	for _, charID := range body.Characters {
-		if err := s.chars.Grant(ctx, id, charID); err != nil {
+		if err := s.user.GrantCharacter(ctx, id, charID); err != nil {
 			writeErr(w, http.StatusInternalServerError, err.Error())
 			return
 		}
 	}
-	acc, err := s.accounts.Get(ctx, id)
+	acc, err := s.user.Get(ctx, id)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, "account not found")
 		return
 	}
-	writeJSON(w, serializeAccount(ctx, acc, s.chars, s.wallets))
+	home, err := s.user.Home(ctx, id)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	writeJSON(w, serializeHome(acc, home))
 }
 
-func serializeAccount(ctx context.Context, acc *storage.Account, chars *user.CharacterService, wallets *user.CurrencyService) map[string]any {
-	cs, _ := chars.List(ctx, acc.ID)
-	currency, _ := wallets.Balance(ctx, acc.ID)
+func serializeHome(acc *user.Account, home *user.Home) map[string]any {
 	return map[string]any{
 		"id":          acc.ID,
 		"username":    acc.Username,
 		"nickname":    acc.Nickname,
 		"level_id":    acc.LevelID,
-		"gold":        currency.Gold,
-		"diamond":     currency.Diamond,
-		"skin_ticket": currency.SkinTicket,
-		"characters":  cs,
+		"gold":        home.Wallet.Gold,
+		"diamond":     home.Wallet.Diamond,
+		"skin_ticket": home.Wallet.SkinTicket,
+		"characters":  home.Characters,
 	}
 }
 

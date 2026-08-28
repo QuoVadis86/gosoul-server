@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"time"
+
+	"github.com/qy-info/gosoul/internal/user"
 )
 
 func now() int64                         { return time.Now().Unix() }
@@ -170,25 +172,25 @@ type numEntry struct {
 }
 
 // accountRPC projects an account for client rendering.
-func (h *handler) accountRPC(state *AccountState) *accountRPC {
+func (h *handler) accountRPC(home *user.Home) *accountRPC {
 	return &accountRPC{
-		AccountID:  uint32(state.Account.ID),
-		Nickname:   state.Account.Nickname,
-		AvatarID:   uint32(state.Account.AvatarID),
-		Gold:       uint32(state.Gold),
-		Diamond:    uint32(state.Diamond),
-		SkinTicket: uint32(state.SkinTicket),
-		VIP:        uint32(state.Account.VIP),
-		Title:      uint32(state.Account.Title),
-		Signature:  state.Account.Signature,
-		Verified:   uint32(state.Account.Verified),
-		Email:      state.Account.Username,
+		AccountID:  uint32(home.Account.ID),
+		Nickname:   home.Account.Nickname,
+		AvatarID:   uint32(home.Account.AvatarID),
+		Gold:       uint32(home.Wallet.Gold),
+		Diamond:    uint32(home.Wallet.Diamond),
+		SkinTicket: uint32(home.Wallet.SkinTicket),
+		VIP:        uint32(home.Account.VIP),
+		Title:      uint32(home.Account.Title),
+		Signature:  home.Account.Signature,
+		Verified:   uint32(home.Account.Verified),
+		Email:      home.Account.Username,
 	}
 }
 
-func (h *handler) charRPCs(state *AccountState) []charRPC {
-	out := make([]charRPC, 0, len(state.Characters))
-	for _, c := range state.Characters {
+func (h *handler) charRPCs(home *user.Home) []charRPC {
+	out := make([]charRPC, 0, len(home.Characters))
+	for _, c := range home.Characters {
 		out = append(out, charRPC{
 			CharID:     uint32(c.CharID),
 			Level:      uint32(c.Level),
@@ -200,9 +202,9 @@ func (h *handler) charRPCs(state *AccountState) []charRPC {
 	return out
 }
 
-func characterSkins(state *AccountState) []uint32 {
+func characterSkins(home *user.Home) []uint32 {
 	var out []uint32
-	for _, c := range state.Characters {
+	for _, c := range home.Characters {
 		if c.SkinID != 0 {
 			out = append(out, uint32(c.SkinID))
 		}
@@ -211,21 +213,21 @@ func characterSkins(state *AccountState) []uint32 {
 }
 
 func (h *handler) updatePayload(accountID int64) *updatePayload {
-	state, err := h.svc.Home(context.Background(), accountID)
+	home, err := h.user.Home(context.Background(), accountID)
 	if err != nil {
 		return &updatePayload{}
 	}
 	u := &updatePayload{}
 	u.Numerical = []numEntry{
-		{ID: 100001, Final: uint32(state.Gold)},
-		{ID: 100002, Final: uint32(state.Diamond)},
-		{ID: 100003, Final: uint32(state.SkinTicket)},
-		{ID: 100004, Final: uint32(state.Account.VIP)},
+		{ID: 100001, Final: uint32(home.Wallet.Gold)},
+		{ID: 100002, Final: uint32(home.Wallet.Diamond)},
+		{ID: 100003, Final: uint32(home.Wallet.SkinTicket)},
+		{ID: 100004, Final: uint32(home.Account.VIP)},
 	}
-	u.Character.Characters = h.charRPCs(state)
-	u.Character.Skins = characterSkins(state)
-	if len(state.Characters) > 0 {
-		u.Character.MainCharacterID = uint32(state.Characters[0].CharID)
+	u.Character.Characters = h.charRPCs(home)
+	u.Character.Skins = characterSkins(home)
+	if len(home.Characters) > 0 {
+		u.Character.MainCharacterID = uint32(home.Characters[0].CharID)
 	}
 	return u
 }

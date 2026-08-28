@@ -23,7 +23,7 @@ type Frame struct {
 	// MsgID is only meaningful for Request and Response frames.
 	MsgID uint16
 	// Name is the wrapper `name` field: a method like ".lq.Lobby.login" or a
-	// notify name like ".lq.ActionPrototype".
+	// notify name like ActionPrototypeNamespace.
 	Name string
 	// Data is the wrapper `data` field: raw bytes of the typed payload.
 	Data []byte
@@ -57,7 +57,7 @@ func EncodeNotify(name string, payload []byte) []byte {
 
 // EncodeActionNotify builds the XOR-wrapped ActionPrototype notify used for battle pushes.
 func EncodeActionNotify(actionName string, actionData []byte, step uint32) []byte {
-	return EncodeNotify(".lq.ActionPrototype", EncodeActionPrototype(actionName, actionData, step))
+	return EncodeNotify(ActionPrototypeNamespace, EncodeActionPrototype(actionName, actionData, step))
 }
 
 // DecodeFrame parses one complete wire frame into a Frame.

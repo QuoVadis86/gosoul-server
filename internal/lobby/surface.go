@@ -31,7 +31,7 @@ func registerEmptySurface(r *router.Router, reg *protocol.Registry, log *slog.Lo
 		r.Handle(method, func(ctx *router.Context) error {
 			route, ok := ctx.Reg.RouteFor(method)
 			if !ok {
-				return ctx.Session.Respond(ctx.MsgID, "lq.ResCommon", empty{})
+				return ctx.Session.Respond(ctx.MsgID, protocol.TypeResCommon, empty{})
 			}
 			return ctx.Session.Respond(ctx.MsgID, route.RespType, empty{})
 		})
@@ -41,7 +41,7 @@ func registerEmptySurface(r *router.Router, reg *protocol.Registry, log *slog.Lo
 }
 
 func isSurfaceMethod(method string) bool {
-	return strings.HasPrefix(method, ".lq.Lobby") ||
-		strings.HasPrefix(method, ".lq.FastTest") ||
-		strings.HasPrefix(method, ".lq.Route")
+	return strings.HasPrefix(method, protocol.LobbyServicePrefix) ||
+		strings.HasPrefix(method, protocol.FastTestServicePrefix) ||
+		strings.HasPrefix(method, protocol.RouteServicePrefix)
 }

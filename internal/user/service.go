@@ -1,6 +1,7 @@
-// Package user implements the account-side domain: signup/login, character
-// licenses and wallets. Services are pure Go (no protocol knowledge); the
-// lobby/service and admin layers translate to and from RPC payloads.
+// Package user implements the account-side domain: signup/login, wallets and
+// character licenses, plus the composition read model the lobby surfaces.
+// It is protocol-agnostic: protocol DTOs and handlers live in the surface
+// packages (lobby for the client RPC face, admin for the GM face).
 package user
 
 import (
@@ -9,33 +10,37 @@ import (
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
-
-	"github.com/qy-info/gosoul/internal/storage"
 )
 
 // ErrTaken is returned when a signup collides with an existing username.
 var ErrTaken = errors.New("user: username taken")
 
-// AccountService owns registration and authentication.
-type AccountService struct {
-	accounts storage.AccountRepo
+// DefaultAllowance seeds new accounts on their first login.
+var DefaultAllowance = struct{ Gold, Diamond, SkinTicket int64 }{100000, 1000, 100}
+
+// Service is the aggregated account domain. It composes the three portraits
+// (accounts, characters, wallets) so read models like Home are assembled with
+// one call from the domain side.
+type Service struct {
+	accounts AccountRepo
+	chars    CharacterRepo
+	wallets  WalletRepo
 }
 
-// NewAccountService wires the service to its repository.
-func NewAccountService(accounts storage.AccountRepo) *AccountService {
-	return &AccountService{accounts: accounts}
+// NewService wires the domain over its persistence ports.
+func NewService(a AccountRepo, c CharacterRepo, w WalletRepo) *Service {
+	return &Service{accounts: a, chars: c, wallets: w}
 }
 
 // Signup registers a new account. Passwords are bcrypt-hashed before storage.
-func (s *AccountService) Signup(ctx context.Context, username, password, nickname string) (*storage.Account, error) {
+func (s *Service) Signup(ctx context.Context, username, password, nickname string) (*Account, error) {
 	existing, err := s.accounts.GetByUsername(ctx, username)
 	if err == nil && existing != nil {
 		return nil, ErrTaken
 	}
-	if err != nil && !errors.Is(err, storage.ErrNotFound) {
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return nil, err
 	}
-
 	if nickname == "" {
 		nickname = username
 	}
@@ -43,7 +48,7 @@ func (s *AccountService) Signup(ctx context.Context, username, password, nicknam
 	if err != nil {
 		return nil, err
 	}
-	acc := &storage.Account{
+	acc := &Account{
 		Username:     username,
 		PasswordHash: string(hash),
 		Nickname:     nickname,
@@ -57,19 +62,27 @@ func (s *AccountService) Signup(ctx context.Context, username, password, nicknam
 	return acc, nil
 }
 
-// LoginOrAutoSignup is the private-server login path: known accounts verify
-// their password; unknown usernames are auto-registered so the client never
-// hits a registration wall.
-func (s *AccountService) LoginOrAutoSignup(ctx context.Context, username, password string) (*storage.Account, error) {
+// Login authenticates a known account and auto-registers unknown usernames so
+// the client never dead-ends. It seeds the wallet on first visit and stamps
+// the last-login time.
+func (s *Service) Login(ctx context.Context, username, password string) (*Account, error) {
 	acc, err := s.accounts.GetByUsername(ctx, username)
-	if errors.Is(err, storage.ErrNotFound) {
-		return s.Signup(ctx, username, password, "")
-	}
-	if err != nil {
+	if errors.Is(err, ErrNotFound) {
+		acc, err = s.Signup(ctx, username, password, "")
+		if err != nil {
+			return nil, err
+		}
+	} else if err != nil {
 		return nil, err
-	}
-	if acc.PasswordHash != "" {
+	} else if acc.PasswordHash != "" {
 		if err := bcrypt.CompareHashAndPassword([]byte(acc.PasswordHash), []byte(password)); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := s.ensureWallet(ctx, acc.ID); err != nil {
+		// a missing wallet is seeded; other errors surface
+		if !errors.Is(err, ErrNotFound) {
 			return nil, err
 		}
 	}
@@ -78,53 +91,33 @@ func (s *AccountService) LoginOrAutoSignup(ctx context.Context, username, passwo
 }
 
 // Get returns an account by ID.
-func (s *AccountService) Get(ctx context.Context, id int64) (*storage.Account, error) {
+func (s *Service) Get(ctx context.Context, id int64) (*Account, error) {
 	return s.accounts.GetByID(ctx, id)
 }
 
-// CharacterService owns character licenses.
-type CharacterService struct {
-	chars storage.CharacterRepo
+// List returns accounts page-wise (used by the GM surface).
+func (s *Service) List(ctx context.Context, limit int) ([]Account, error) {
+	return s.accounts.List(ctx, limit, 0)
 }
 
-// NewCharacterService wires the service to its repository.
-func NewCharacterService(chars storage.CharacterRepo) *CharacterService {
-	return &CharacterService{chars: chars}
-}
-
-// List returns all characters held by an account.
-func (s *CharacterService) List(ctx context.Context, accountID int64) ([]storage.Character, error) {
-	return s.chars.List(ctx, accountID)
-}
-
-// Grant licenses a character to an account (idempotent).
-func (s *CharacterService) Grant(ctx context.Context, accountID, charID int64) error {
-	return s.chars.Add(ctx, storage.Character{AccountID: accountID, CharID: charID, Level: 1})
-}
-
-// CurrencyService owns wallets.
-type CurrencyService struct {
-	wallets storage.CurrencyRepo
-}
-
-// NewCurrencyService wires the service to its repository.
-func NewCurrencyService(wallets storage.CurrencyRepo) *CurrencyService {
-	return &CurrencyService{wallets: wallets}
+// Touch records the last login timestamp.
+func (s *Service) Touch(ctx context.Context, id int64, at int64) error {
+	return s.accounts.UpdateLogin(ctx, id, at)
 }
 
 // Balance returns the wallet of an account.
-func (s *CurrencyService) Balance(ctx context.Context, accountID int64) (storage.Currency, error) {
+func (s *Service) Balance(ctx context.Context, accountID int64) (Wallet, error) {
 	return s.wallets.Get(ctx, accountID)
 }
 
-// NewAccountAllowance seeds a fresh account with starting money.
-func (s *CurrencyService) NewAccountAllowance(ctx context.Context, accountID int64, gold, diamond, tickets int64) error {
-	if gold > 0 {
+// Grant applies a mixed wallet change to one account.
+func (s *Service) Grant(ctx context.Context, accountID, gold, diamond, tickets int64) error {
+	if gold != 0 {
 		if err := s.wallets.AddGold(ctx, accountID, gold); err != nil {
 			return err
 		}
 	}
-	if diamond > 0 {
+	if diamond != 0 {
 		if err := s.wallets.AddDiamond(ctx, accountID, diamond); err != nil {
 			return err
 		}
@@ -132,17 +125,46 @@ func (s *CurrencyService) NewAccountAllowance(ctx context.Context, accountID int
 	return s.wallets.AddSkinTicket(ctx, accountID, tickets)
 }
 
-// Grant applies a mixed wallet grant to one account.
-func (s *CurrencyService) Grant(ctx context.Context, accountID, gold, diamond, tickets int64) error {
-	return s.NewAccountAllowance(ctx, accountID, gold, diamond, tickets)
+// Characters lists everything an account owns.
+func (s *Service) Characters(ctx context.Context, accountID int64) ([]Character, error) {
+	return s.chars.List(ctx, accountID)
 }
 
-// List returns accounts page-wise (used by the GM surface).
-func (s *AccountService) List(ctx context.Context, limit int) ([]storage.Account, error) {
-	return s.accounts.List(ctx, limit, 0)
+// GrantCharacter licenses a character (idempotent).
+func (s *Service) GrantCharacter(ctx context.Context, accountID, charID int64) error {
+	return s.chars.Add(ctx, Character{AccountID: accountID, CharID: charID, Level: 1})
 }
 
-// Touch records the last login timestamp.
-func (s *AccountService) Touch(ctx context.Context, id int64, at int64) error {
-	return s.accounts.UpdateLogin(ctx, id, at)
+// Home is the composition read model the lobby and GM surfaces render.
+type Home struct {
+	Account    *Account
+	Wallet     Wallet
+	Characters []Character
+}
+
+// Home assembles everything a seat needs after login or when entering lobby.
+func (s *Service) Home(ctx context.Context, accountID int64) (*Home, error) {
+	acc, err := s.accounts.GetByID(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	wallet, err := s.wallets.Get(ctx, accountID)
+	if errors.Is(err, ErrNotFound) {
+		wallet = Wallet{}
+	} else if err != nil {
+		return nil, err
+	}
+	chars, err := s.chars.List(ctx, accountID)
+	if err != nil {
+		return nil, err
+	}
+	return &Home{Account: acc, Wallet: wallet, Characters: chars}, nil
+}
+
+func (s *Service) ensureWallet(ctx context.Context, accountID int64) error {
+	_, err := s.wallets.Get(ctx, accountID)
+	if errors.Is(err, ErrNotFound) {
+		return s.wallets.AddGold(ctx, accountID, DefaultAllowance.Gold)
+	}
+	return err
 }

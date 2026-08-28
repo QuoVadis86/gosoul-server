@@ -37,9 +37,7 @@ func main() {
 	}
 	defer store.Close()
 
-	accounts := user.NewAccountService(store.Account)
-	chars := user.NewCharacterService(store.Character)
-	wallets := user.NewCurrencyService(store.Currency)
+	svc := user.NewService(store.Account, store.Character, store.Wallet)
 
 	reg, err := protocol.Load()
 	if err != nil {
@@ -47,8 +45,7 @@ func main() {
 		os.Exit(1)
 	}
 	r := router.New(reg)
-	svc := lobby.NewService(accounts, chars, wallets)
-	lobby.Handlers(svc, accounts, chars, wallets, log, r, reg)
+	lobby.Handlers(svc, log, r, reg)
 	transportSrv := transport.New(r, reg, log)
 	lobbyHTTP := &http.Server{Addr: cfg.Lobby.Addr(), Handler: http.HandlerFunc(transportSrv.HandleHTTP)}
 
@@ -68,7 +65,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	adm := admin.New(log, accounts, chars, wallets)
+	adm := admin.New(log, svc)
 	adminSrv := &http.Server{Addr: cfg.Admin.Listen, Handler: adm.Handler()}
 
 	errCh := make(chan error, 2)

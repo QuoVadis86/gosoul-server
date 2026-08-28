@@ -62,7 +62,7 @@ func (r *Router) Dispatch(s Session, method string, msgID uint16, payload []byte
 	if err != nil {
 		// A plain success envelope keeps mishandled calls from hanging the
 		// client; errors are surfaced via logs.
-		_ = s.Respond(msgID, "lq.ResCommon", errSafe{})
+		_ = s.Respond(msgID, protocol.TypeResCommon, errSafe{})
 	}
 	return true
 }
