@@ -18,6 +18,7 @@ type session struct {
 	GameUUID  string
 	StartedAt time.Time
 	round     *roundState
+	drv       *drive
 	kyoku     int
 	honba     int
 }

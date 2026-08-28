@@ -100,3 +100,41 @@ type resSyncGame struct {
 	Step        uint32       `json:"step"`
 	GameRestore *gameRestore `json:"gameRestore"`
 }
+
+// actionDealTile mirrors ActionDealTile.
+type actionDealTile struct {
+	Seat          uint32   `json:"seat"`
+	Tile          string   `json:"tile"`
+	LeftTileCount uint32   `json:"leftTileCount"`
+	Doras         []string `json:"doras"`
+}
+
+// actionDiscardTile mirrors ActionDiscardTile.
+type actionDiscardTile struct {
+	Seat     uint32   `json:"seat"`
+	Tile     string   `json:"tile"`
+	Doras    []string `json:"doras"`
+	Scores   []int    `json:"scores"`
+	Liqibang uint32   `json:"liqibang"`
+}
+
+// huInfo is one winner inside ActionHule.
+type huInfo struct {
+	Seat  uint32   `json:"seat"`
+	Zimo  bool     `json:"zimo"`
+	Count uint32   `json:"count"`
+	Fu    uint32   `json:"fu"`
+	Title string   `json:"title"`
+	Doras []string `json:"doras"`
+}
+
+// actionHu mirrors ActionHule.
+type actionHu struct {
+	Hules  []huInfo `json:"hules"`
+	Scores []int    `json:"scores"`
+}
+
+// actionLiuJu mirrors ActionLiuJu.
+type actionLiuJu struct {
+	Type uint32 `json:"type"`
+}

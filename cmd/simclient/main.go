@@ -228,6 +228,7 @@ func runGameMode(addr string) {
 	send(".lq.FastTest.syncGame", "lq.ReqSyncGame", map[string]any{"roundId": "", "step": 0})
 	send(".lq.FastTest.confirmNewRound", "lq.ReqCommon", map[string]any{})
 	send(".lq.FastTest.checkNetworkDelay", "lq.ReqCommon", map[string]any{})
+	send(".lq.FastTest.inputOperation", "lq.ReqSelfOperation", map[string]any{"type": 0, "tile": "1m", "timeuse": 500})
 }
 
 func respFor(method string) string {

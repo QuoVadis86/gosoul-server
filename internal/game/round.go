@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/qy-info/gosoul/internal/deal"
+	"github.com/qy-info/gosoul/internal/game/ai"
 	"github.com/qy-info/gosoul/internal/game/engine"
 	"github.com/qy-info/gosoul/internal/protocol"
 	"github.com/qy-info/gosoul/internal/router"
@@ -13,6 +14,7 @@ import (
 // roundState is the live engine round attached to a seat session.
 type roundState struct {
 	round *engine.Round
+	drv   *drive
 	// kyoku/honba track the match position (engine owns per-round state).
 	kyoku int
 	honba int
@@ -42,7 +44,8 @@ func (h *handlers) startRound(ctx context.Context, s *session, sess router.Sessi
 	if _, err := r.Start(ctx); err != nil {
 		return err
 	}
-	s.round = &roundState{round: r, kyoku: s.kyoku, honba: s.honba}
+	drv := newDrive(sess, h.log, botForSeats())
+	s.round = &roundState{round: r, drv: drv, kyoku: s.kyoku, honba: s.honba}
 
 	human := r.ViewFor(s.Seat)
 	r.SortHand(s.Seat)
@@ -62,6 +65,11 @@ func (h *handlers) startRound(ctx context.Context, s *session, sess router.Sessi
 		return err
 	}
 	h.log.Info("round started", "game", s.GameUUID, "seat", s.Seat, "dora", string(r.Dora[0]))
+	go func() {
+		if err := s.runRound(context.Background()); err != nil {
+			h.log.Warn("round drive ended", "err", err)
+		}
+	}()
 	return nil
 }
 
@@ -93,4 +101,19 @@ func tileStrings(tiles []engine.Tile) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// botForSeats returns a bot provider: every seat gets a normal bot except seat
+// 0, which is the human's. Real seat mapping comes from room config later.
+func botForSeats() func(seat int) ai.Player {
+	return func(seat int) ai.Player {
+		if seat == 0 {
+			return nil
+		}
+		p, err := ai.New("normal", nil)
+		if err != nil {
+			return nil
+		}
+		return p
+	}
 }

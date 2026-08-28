@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/qy-info/gosoul/internal/game/engine"
 	"github.com/qy-info/gosoul/internal/router"
 )
 
@@ -88,6 +89,25 @@ func (h *handlers) confirmNewRound(ctx *router.Context) error {
 }
 
 func (h *handlers) inputOperation(ctx *router.Context) error {
+	var req struct {
+		Type      uint32 `json:"type"`
+		Tile      string `json:"tile"`
+		Cancel    bool   `json:"cancelOperation"`
+		TimeUse   uint32 `json:"timeuse"`
+		TileState int32  `json:"tileState"`
+	}
+	if err := ctx.Reg.DecodeInto("lq.ReqSelfOperation", ctx.Payload, &req); err != nil {
+		return err
+	}
+	s := h.sessions[ctx.Session]
+	if s == nil || s.round == nil || s.round.drv == nil {
+		return h.ok(ctx)
+	}
+	op := humanOp{Type: req.Type, Tile: engine.Tile(req.Tile), Cancel: req.Cancel, TimeUse: req.TimeUse, TileState: req.TileState}
+	if err := s.round.drv.Deliver(s.Seat, op); err != nil {
+		// Drive already complete; still answer ok to keep the client moving.
+		return h.ok(ctx)
+	}
 	return h.ok(ctx)
 }
 
